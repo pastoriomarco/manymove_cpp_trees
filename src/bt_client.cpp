@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     };
 
     std::vector<Move> pick_sequence = {
-        {"pose", {}, pick_target, "", move_configs["mid_move"]},
+        {"pose", {}, approach_target, "", move_configs["mid_move"]},
         {"pose", {}, pick_target, "", move_configs["slow_move"]},
         {"pose", {}, approach_target, "", move_configs["max_move"]},
     };
