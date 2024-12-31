@@ -153,7 +153,7 @@ int main(int argc, char **argv)
 
     // 8. Tick the Behavior Tree
 
-    rclcpp::Rate rate(10); // 10 Hz
+    rclcpp::Rate rate(1000); // 1000 Hz
 
     while (rclcpp::ok())
     {
