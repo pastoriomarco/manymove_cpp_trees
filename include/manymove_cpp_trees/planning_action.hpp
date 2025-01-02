@@ -1,4 +1,4 @@
-// src/manymove_cpp_trees/include/manymove_cpp_trees/planning_action.hpp
+// include/manymove_cpp_trees/planning_action.hpp
 
 #ifndef MANYMOVE_CPP_TREES_PLANNING_ACTION_HPP
 #define MANYMOVE_CPP_TREES_PLANNING_ACTION_HPP
@@ -9,7 +9,6 @@
 #include <manymove_planner/action/plan_manipulator.hpp>
 #include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <string>
-#include "manymove_cpp_trees/serialization_helper.hpp"
 #include "manymove_cpp_trees/move.hpp"
 
 namespace manymove_cpp_trees
@@ -21,17 +20,16 @@ public:
     using PlanManipulator = manymove_planner::action::PlanManipulator;
     using GoalHandlePlanManipulator = rclcpp_action::ClientGoalHandle<PlanManipulator>;
 
-    PlanningAction(const std::string& name, const BT::NodeConfiguration& config);
+    PlanningAction(const std::string &name, const BT::NodeConfiguration &config);
 
     // Define the ports (inputs and outputs)
     static BT::PortsList providedPorts()
     {
         return {
-            BT::InputPort<std::string>("goal"),
-            BT::InputPort<std::string>("move_id"), // move_id input port
-            BT::OutputPort<moveit_msgs::msg::RobotTrajectory>("trajectory"),
-            BT::OutputPort<std::string>("planned_move_id"),
-            BT::OutputPort<bool>("planning_validity")
+            BT::InputPort<std::string>("move_id", "Unique identifier for the move"),
+            BT::OutputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
+            BT::OutputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
+            BT::OutputPort<bool>("planning_validity", "Indicates if planning was successful")
         };
     }
 
@@ -47,7 +45,7 @@ private:
     void feedback_callback(
         GoalHandlePlanManipulator::SharedPtr goal_handle,
         const std::shared_ptr<const PlanManipulator::Feedback> feedback);
-    void result_callback(const GoalHandlePlanManipulator::WrappedResult& result);
+    void result_callback(const GoalHandlePlanManipulator::WrappedResult &result);
 
     // ROS 2 node and action client
     rclcpp::Node::SharedPtr node_;
@@ -57,7 +55,7 @@ private:
     bool goal_sent_;
     bool result_received_;
     PlanManipulator::Result result_;
-    std::chrono::steady_clock::time_point start_time_; 
+    std::chrono::steady_clock::time_point start_time_;
 };
 
 } // namespace manymove_cpp_trees

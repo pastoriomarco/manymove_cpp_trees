@@ -31,18 +31,21 @@ namespace manymove_cpp_trees
         std::vector<double> joint_values;             // For "joint" type
         std::string named_target;                     // For "named" type
         manymove_planner::msg::MovementConfig config; // Configuration parameters
+        std::vector<double> start_joint_values;       // Starting joint values for planning
 
-        // Constructor
+        // Constructor with start_joint_values defaulted to empty
         Move(const std::string &type,
              const std::vector<double> &joint_values = {},
              const geometry_msgs::msg::Pose &pose_target = geometry_msgs::msg::Pose(),
              const std::string &named_target = "",
-             const manymove_planner::msg::MovementConfig &config = defaultMovementConfig())
+             const manymove_planner::msg::MovementConfig &config = defaultMovementConfig(),
+             const std::vector<double> &start_joint_values = {})
             : type(type),
               pose_target(pose_target),
               joint_values(joint_values),
               named_target(named_target),
-              config(config)
+              config(config),
+              start_joint_values(start_joint_values)
         {
         }
 
@@ -65,6 +68,7 @@ namespace manymove_cpp_trees
                 goal.named_target = named_target;
             }
 
+            goal.start_joint_values = start_joint_values;
             goal.config = config;
             return goal;
         }

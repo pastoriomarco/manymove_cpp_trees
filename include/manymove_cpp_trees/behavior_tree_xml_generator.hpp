@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include "manymove_cpp_trees/move.hpp"
-#include "manymove_cpp_trees/serialization_helper.hpp"
 
 namespace manymove_cpp_trees
 {

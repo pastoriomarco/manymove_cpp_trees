@@ -1,4 +1,4 @@
-// src/manymove_cpp_trees/include/manymove_cpp_trees/execute_trajectory.hpp
+// include/manymove_cpp_trees/execute_trajectory.hpp
 
 #ifndef MANYMOVE_CPP_TREES_EXECUTE_TRAJECTORY_HPP
 #define MANYMOVE_CPP_TREES_EXECUTE_TRAJECTORY_HPP
@@ -25,10 +25,10 @@ namespace manymove_cpp_trees
         static BT::PortsList providedPorts()
         {
             return {
-                BT::InputPort<moveit_msgs::msg::RobotTrajectory>("trajectory"),
-                BT::InputPort<std::string>("planned_move_id"),
-                BT::InputPort<bool>("planning_validity"),
-                BT::OutputPort<bool>("validity")
+                BT::InputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
+                BT::InputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
+                BT::InputPort<bool>("planning_validity", "Indicates if planning was successful"),
+                // BT::OutputPort<bool>("validity", "Indicates if execution was successful")
             };
         }
 
@@ -55,6 +55,7 @@ namespace manymove_cpp_trees
         bool result_received_;
         ExecuteTrajectoryAction::Result result_;
         std::chrono::steady_clock::time_point start_time_;
+        moveit_msgs::msg::RobotTrajectory trajectory_;
     };
 
 } // namespace manymove_cpp_trees

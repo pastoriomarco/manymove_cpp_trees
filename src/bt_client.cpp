@@ -1,3 +1,5 @@
+// src/manymove_cpp_trees/src/bt_client.cpp
+
 #include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>
@@ -6,8 +8,6 @@
 #include "manymove_cpp_trees/execute_trajectory.hpp"
 #include "manymove_cpp_trees/behavior_tree_xml_generator.hpp"
 #include "manymove_cpp_trees/move.hpp"
-#include "manymove_cpp_trees/serialization_helper.hpp"
-#include "manymove_planner/msg/movement_config.hpp"
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
 #include <string>
@@ -145,13 +145,34 @@ int main(int argc, char **argv)
     auto blackboard = BT::Blackboard::create();
     blackboard->set("node", node);
 
-    // 6. Create the tree from the XML string and the blackboard
+    // 6. Preload configurations into the blackboard
+    size_t global_move_id = 0;
+    for (const auto &sequence : list_of_sequences)
+    {
+        for (const auto &move : sequence)
+        {
+            // Define a simple key: "move_0", "move_1", etc.
+            std::string move_key = "move_" + std::to_string(global_move_id);
+
+            // Store the Move struct as a shared_ptr
+            auto move_ptr = std::make_shared<Move>(move);
+            blackboard->set(move_key, move_ptr);
+
+            RCLCPP_INFO(node->get_logger(), "Blackboard set: %s", move_key.c_str());
+
+            global_move_id++;
+        }
+    }
+
+    RCLCPP_INFO(node->get_logger(), "Blackboard preloaded with %zu move configurations.", global_move_id);
+
+    // 7. Create the tree from the XML string and the blackboard
     BT::Tree tree = factory.createTreeFromText(tree_xml, blackboard);
 
-    // 7. Attach a ZMQ Publisher for Groot
+    // 8. Attach a ZMQ Publisher for Groot
     BT::PublisherZMQ publisher_zmq(tree);
 
-    // 8. Tick the Behavior Tree
+    // 9. Tick the Behavior Tree
 
     rclcpp::Rate rate(1000); // 1000 Hz
 
@@ -161,22 +182,26 @@ int main(int argc, char **argv)
 
         BT::NodeStatus status = tree.rootNode()->status();
 
+        // **Add Logging for Tree Status**
+        // RCLCPP_INFO(node->get_logger(), "Behavior Tree Root Status: %s",
+        //             BT::toStr(status).c_str());
+
         if (status == BT::NodeStatus::SUCCESS)
         {
             RCLCPP_INFO(node->get_logger(), "Behavior Tree completed successfully.");
-            break;
+            break; // Exit the loop
         }
         else if (status == BT::NodeStatus::FAILURE)
         {
             RCLCPP_ERROR(node->get_logger(), "Behavior Tree failed.");
-            break;
+            break; // Exit the loop
         }
 
         rclcpp::spin_some(node);
         rate.sleep();
     }
 
-    // 9. Shutdown
+    // 10. Shutdown
     tree.rootNode()->halt();
     rclcpp::shutdown();
     return 0;

@@ -7,7 +7,7 @@
 namespace manymove_cpp_trees
 {
 
-BehaviorTreeXMLGenerator::BehaviorTreeXMLGenerator(const std::vector<std::vector<Move>>& sequences)
+BehaviorTreeXMLGenerator::BehaviorTreeXMLGenerator(const std::vector<std::vector<Move>> &sequences)
     : sequences_(sequences)
 {
 }
@@ -19,83 +19,135 @@ std::string BehaviorTreeXMLGenerator::generateXML() const
     xml << "<root main_tree_to_execute=\"RootSequence\">\n";
     xml << "  <BehaviorTree ID=\"RootSequence\">\n";
 
-    // Create the root sequence node
+    // Root Sequence node handles infinite looping by never returning SUCCESS
     xml << "    <Sequence name=\"Root\">\n";
 
     if (sequences_.empty())
     {
         RCLCPP_WARN(rclcpp::get_logger("bt_client_node"), "No move sequences provided.");
-        xml << "    </Sequence>\n";
+        xml << "      </Sequence>\n";
         xml << "  </BehaviorTree>\n";
         xml << "</root>\n";
         return xml.str();
     }
 
-    // Iterate over each sequence
-    for (size_t i = 0; i < sequences_.size(); ++i)
+    // Flatten all moves into a single list with unique move indices
+    std::vector<Move> all_moves;
+    size_t global_move_id = 0;
+    for (const auto &sequence : sequences_)
     {
-        const auto& sequence = sequences_[i];
-        std::ostringstream plan_sequence_name;
-        plan_sequence_name << "PlanSequence_" << i;
-        xml << "      <Sequence name=\"" << plan_sequence_name.str() << "\">\n";
-
-        for (size_t j = 0; j < sequence.size(); ++j)
+        for (const auto &move : sequence)
         {
-            const auto& move = sequence[j];
+            all_moves.emplace_back(move);
+            global_move_id++;
+        }
+    }
 
-            // 1) Convert Move -> MoveManipulatorGoal
-            manymove_planner::msg::MoveManipulatorGoal move_goal;
-            move_goal.movement_type = move.type;
+    // Iterate through all moves and build Plan and Exec sequences
+    for (size_t i = 0; i < all_moves.size(); ++i)
+    {
+        const auto &move = all_moves[i];
+        std::ostringstream move_id_oss;
+        move_id_oss << i;
+        std::string move_id_str = move_id_oss.str();
 
-            if (move.type == "pose")
-            {
-                move_goal.pose_target = move.pose_target;
-            }
-            else if (move.type == "joint")
-            {
-                move_goal.joint_values = move.joint_values;
-            }
-            else if (move.type == "named")
-            {
-                move_goal.named_target = move.named_target;
-            }
+        // Define the blackboard keys for trajectory, planned_move_id, and planning_validity
+        std::string traj_key = "traj_" + move_id_str;
+        std::string planned_move_id_key = "planned_move_id_" + move_id_str;
+        std::string planning_validity_key = "planning_validity_" + move_id_str;
 
-            // Copy config
-            move_goal.config = move.config;
-
-            // 2) Serialize the goal
-            std::string serialized_goal = serializeMoveManipulatorGoal(move_goal);
-
-            // 3) Build a move_id from (i, move.type, j)
-            std::ostringstream move_id_oss;
-            move_id_oss << i << "_" << move.type << "_" << j;
-            std::string move_id_str = move_id_oss.str();
-
-            // 4) Define the blackboard keys for trajectory, planned_move_id, and planning_validity
-            std::string traj_key = "traj_" + move_id_str;
-            std::string planned_move_id_key = "planned_move_id_" + move_id_str;
-            std::string planning_validity_key = "planning_validity_" + move_id_str;
-
-            // 5) Create the <PlanningAction> node with proper port mappings
+        if (i == 0)
+        {
+            // Initial PlanSequence for the first move
+            xml << "      <Sequence name=\"PlanSequence_" << i << "\">\n";
             xml << "        <PlanningAction name=\"PlanAction_" << move_id_str
-                << "\" goal=\"" << serialized_goal
                 << "\" move_id=\"" << move_id_str << "\" "
                 << "trajectory=\"{" << traj_key << "}\" "
                 << "planned_move_id=\"{" << planned_move_id_key << "}\" "
                 << "planning_validity=\"{" << planning_validity_key << "}\" />\n";
+            xml << "      </Sequence>\n";
 
-            // 6) Create the corresponding <ExecuteTrajectory> node
-            xml << "        <ExecuteTrajectory name=\"ExecAction_" << move_id_str
+            // Execute the first move while planning the second move
+            // Determine number of children for Parallel node
+            size_t num_children = (i + 1 < all_moves.size()) ? 2 : 1;
+
+            xml << "      <Parallel name=\"Parallel_Exec" << i << "_Plan" << (i + 1)
+                << "\" success_threshold=\"" << num_children << "\" failure_threshold=\"1\">\n";
+
+            // ExecSequence_0
+            xml << "        <Sequence name=\"ExecSequence_" << i << "\">\n";
+            xml << "          <ExecuteTrajectory name=\"ExecAction_" << move_id_str
                 << "\" trajectory=\"{" << traj_key << "}\" "
                 << "planned_move_id=\"{" << planned_move_id_key << "}\" "
-                << "planning_validity=\"{" << planning_validity_key << "}\" "
-                << "validity=\"{validity_" << move_id_str << "}\" />\n";
-        }
+                << "planning_validity=\"{" << planning_validity_key << "}\" />\n"; // Removed validity port
+            xml << "        </Sequence>\n";
 
-        xml << "      </Sequence>\n";
+            // PlanSequence_1 (if exists)
+            if (i + 1 < all_moves.size())
+            {
+                const auto &next_move = all_moves[i + 1];
+                std::ostringstream next_move_id_oss;
+                next_move_id_oss << (i + 1);
+                std::string next_move_id_str = next_move_id_oss.str();
+
+                std::string next_traj_key = "traj_" + next_move_id_str;
+                std::string next_planned_move_id_key = "planned_move_id_" + next_move_id_str;
+                std::string next_planning_validity_key = "planning_validity_" + next_move_id_str;
+
+                xml << "        <Sequence name=\"PlanSequence_" << (i + 1) << "\">\n";
+                xml << "          <PlanningAction name=\"PlanAction_" << next_move_id_str
+                    << "\" move_id=\"" << next_move_id_str << "\" "
+                    << "trajectory=\"{" << next_traj_key << "}\" "
+                    << "planned_move_id=\"{" << next_planned_move_id_key << "}\" "
+                    << "planning_validity=\"{" << next_planning_validity_key << "}\" />\n";
+                xml << "        </Sequence>\n";
+            }
+
+            xml << "      </Parallel>\n";
+        }
+        else
+        {
+            // For subsequent moves, wrap them in Parallel nodes
+            // Determine number of children for Parallel node
+            size_t num_children = (i + 1 < all_moves.size()) ? 2 : 1;
+
+            xml << "      <Parallel name=\"Parallel_Exec" << i << "_Plan" << (i + 1)
+                << "\" success_threshold=\"" << num_children << "\" failure_threshold=\"1\">\n";
+
+            // ExecSequence_i
+            xml << "        <Sequence name=\"ExecSequence_" << i << "\">\n";
+            xml << "          <ExecuteTrajectory name=\"ExecAction_" << move_id_str
+                << "\" trajectory=\"{" << traj_key << "}\" "
+                << "planned_move_id=\"{" << planned_move_id_key << "}\" "
+                << "planning_validity=\"{" << planning_validity_key << "}\" />\n"; // Removed validity port
+            xml << "        </Sequence>\n";
+
+            // PlanSequence_{i+1} (if exists)
+            if (i + 1 < all_moves.size())
+            {
+                const auto &next_move = all_moves[i + 1];
+                std::ostringstream next_move_id_oss;
+                next_move_id_oss << (i + 1);
+                std::string next_move_id_str = next_move_id_oss.str();
+
+                std::string next_traj_key = "traj_" + next_move_id_str;
+                std::string next_planned_move_id_key = "planned_move_id_" + next_move_id_str;
+                std::string next_planning_validity_key = "planning_validity_" + next_move_id_str;
+
+                xml << "        <Sequence name=\"PlanSequence_" << (i + 1) << "\">\n";
+                xml << "          <PlanningAction name=\"PlanAction_" << next_move_id_str
+                    << "\" move_id=\"" << next_move_id_str << "\" "
+                    << "trajectory=\"{" << next_traj_key << "}\" "
+                    << "planned_move_id=\"{" << next_planned_move_id_key << "}\" "
+                    << "planning_validity=\"{" << next_planning_validity_key << "}\" />\n";
+                xml << "        </Sequence>\n";
+            }
+
+            xml << "      </Parallel>\n";
+        }
     }
 
-    // Close the root sequence node
+    // Close the root sequence
     xml << "    </Sequence>\n";
     xml << "  </BehaviorTree>\n";
     xml << "</root>\n";
