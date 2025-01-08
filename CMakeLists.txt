@@ -13,7 +13,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
-find_package(manymove_planner REQUIRED) # Replace with actual package name
+find_package(manymove_planner REQUIRED)
 find_package(moveit_msgs REQUIRED)
 
 # Include directories
