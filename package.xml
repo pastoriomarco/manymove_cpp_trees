@@ -3,8 +3,8 @@
 <package format="3">
   <name>manymove_cpp_trees</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="pastoriomarco@gmail.com">tndlux</maintainer>
+  <description>Package to generate behaviortrees for manymove_manipulator using BehaviorTree.CPP</description>
+  <maintainer email="pastoriomarco@gmail.com">pastoriomarco</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
