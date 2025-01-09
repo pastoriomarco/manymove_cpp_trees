@@ -1,5 +1,3 @@
-// src/manymove_cpp_trees/src/planning_action.cpp
-
 #include "manymove_cpp_trees/planning_action.hpp"
 
 #include <rclcpp/rclcpp.hpp>

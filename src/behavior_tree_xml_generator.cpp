@@ -1,5 +1,3 @@
-// src/manymove_cpp_trees/src/behavior_tree_xml_generator.cpp
-
 #include "manymove_cpp_trees/behavior_tree_xml_generator.hpp"
 #include <sstream>
 #include <rclcpp/rclcpp.hpp> // For logging (optional)

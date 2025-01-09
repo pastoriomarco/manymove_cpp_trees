@@ -1,5 +1,3 @@
-// src/manymove_cpp_trees/src/bt_client.cpp
-
 #include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>

@@ -1,7 +1,5 @@
-// src/manymove_cpp_trees/src/execute_trajectory.cpp
-
 #include "manymove_cpp_trees/execute_trajectory.hpp"
-#include "manymove_cpp_trees/behavior_tree_xml_generator.hpp" // Include only if needed
+#include "manymove_cpp_trees/behavior_tree_xml_generator.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp_v3/behavior_tree.h>
