@@ -24,16 +24,32 @@ namespace manymove_cpp_trees
         return config;
     }
 
+    /**
+     * @struct Move
+     * @brief Represents a single move command with a specified type and configuration.
+     *
+     * This struct is used to store details of a single move, including its type
+     * (e.g., "pose", "joint", "named", or "cartesian"), any relevant pose or joint data,
+     * and the associated MovementConfig.
+     */
     struct Move
     {
-        std::string type;                             // "pose", "joint", or "named"
-        geometry_msgs::msg::Pose pose_target;         // For "pose" type
-        std::vector<double> joint_values;             // For "joint" type
-        std::string named_target;                     // For "named" type
-        manymove_planner::msg::MovementConfig config; // Configuration parameters
-        std::vector<double> start_joint_values;       // Starting joint values for planning
+        std::string type;                             ///< The movement type: "pose", "joint", "named", or "cartesian".
+        geometry_msgs::msg::Pose pose_target;         ///< Pose target for "pose" or "cartesian" type.
+        std::vector<double> joint_values;             ///< Joint values for "joint" type.
+        std::string named_target;                     ///< Named target for "named" type.
+        manymove_planner::msg::MovementConfig config; ///< Movement configuration parameters.
+        std::vector<double> start_joint_values;       ///< Starting joint values for planning (optional).
 
-        // Constructor with start_joint_values defaulted to empty
+        /**
+         * @brief Constructor to create a Move object.
+         * @param type The movement type ("pose", "joint", "named", or "cartesian").
+         * @param joint_values The joint values (for "joint" type).
+         * @param pose_target The pose (for "pose" or "cartesian" type).
+         * @param named_target The named target (for "named" type).
+         * @param config The movement configuration.
+         * @param start_joint_values The optional starting joint values.
+         */
         Move(const std::string &type,
              const std::vector<double> &joint_values = {},
              const geometry_msgs::msg::Pose &pose_target = geometry_msgs::msg::Pose(),
@@ -49,13 +65,17 @@ namespace manymove_cpp_trees
         {
         }
 
-        // Method to convert to MoveManipulatorGoal
+        /**
+         * @brief Convert this Move struct into a MoveManipulatorGoal message for planning/execution.
+         * @return A populated MoveManipulatorGoal message reflecting the content of this Move.
+         */
         manymove_planner::msg::MoveManipulatorGoal to_move_manipulator_goal() const
         {
             manymove_planner::msg::MoveManipulatorGoal goal;
             goal.movement_type = type;
 
-            if (type == "pose")
+            // "pose" and "cartesian" both rely on pose_target
+            if (type == "pose" || type == "cartesian")
             {
                 goal.pose_target = pose_target;
             }
