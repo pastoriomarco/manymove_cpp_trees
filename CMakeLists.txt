@@ -1,5 +1,3 @@
-# CMakeLists.txt
-
 cmake_minimum_required(VERSION 3.5)
 project(manymove_cpp_trees)
 
@@ -20,7 +18,12 @@ find_package(moveit_msgs REQUIRED)
 include_directories(include)
 
 # Add executable for BT client
-add_executable(bt_client src/bt_client.cpp src/behavior_tree_xml_generator.cpp src/planning_action.cpp src/execute_trajectory.cpp)
+add_executable(bt_client
+    src/bt_client.cpp
+    src/planning_action.cpp
+    src/execute_trajectory.cpp
+    src/tree_helper.cpp
+)
 
 ament_target_dependencies(bt_client
   rclcpp
@@ -36,7 +39,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# Install headers
+# Install headers (tree_helper.hpp, planning_action.hpp, etc.)
 install(DIRECTORY include/
   DESTINATION include/
 )

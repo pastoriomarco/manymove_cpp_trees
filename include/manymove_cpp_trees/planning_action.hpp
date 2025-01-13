@@ -1,5 +1,3 @@
-// include/manymove_cpp_trees/planning_action.hpp
-
 #ifndef MANYMOVE_CPP_TREES_PLANNING_ACTION_HPP
 #define MANYMOVE_CPP_TREES_PLANNING_ACTION_HPP
 
@@ -8,20 +6,21 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <manymove_planner/action/plan_manipulator.hpp>
 #include <moveit_msgs/msg/robot_trajectory.hpp>
-#include <string>
 #include "manymove_cpp_trees/move.hpp"
 
 namespace manymove_cpp_trees
 {
+
     /**
      * @class PlanningAction
-     * @brief A BehaviorTree node that sends a planning request to the plan_manipulator action server.
+     * @brief A stateful BT node that sends a planning request to the plan_manipulator action server.
      *
-     * This node uses the BehaviorTree.CPP (BT) framework. In its tick() function, it sends
-     * a planning goal (derived from a Move object) to a plan_manipulator action server. When
-     * the result is received, it sets the output ports accordingly.
+     * We use StatefulActionNode to illustrate best practices:
+     *   - onStart() => send goal
+     *   - onRunning() => check result
+     *   - onHalted() => cancel if needed
      */
-    class PlanningAction : public BT::AsyncActionNode
+    class PlanningAction : public BT::StatefulActionNode
     {
     public:
         using PlanManipulator = manymove_planner::action::PlanManipulator;
@@ -30,13 +29,12 @@ namespace manymove_cpp_trees
         /**
          * @brief Constructor for the PlanningAction node.
          * @param name The name of this BT node.
-         * @param config The configuration (ports, etc.) used by BehaviorTree.CPP.
+         * @param config The BT NodeConfiguration (ports, blackboard, etc.).
          */
         PlanningAction(const std::string &name, const BT::NodeConfiguration &config);
 
         /**
-         * @brief Provide BT ports (inputs/outputs) for PlanningAction.
-         * @return A list of ports with names and types.
+         * @brief Define the required/optional ports for this node.
          */
         static BT::PortsList providedPorts()
         {
@@ -47,55 +45,39 @@ namespace manymove_cpp_trees
                 BT::OutputPort<bool>("planning_validity", "Indicates if planning was successful")};
         }
 
+    protected:
         /**
-         * @brief The main function that is called repeatedly by the BT framework.
-         * @return The current status of the node (RUNNING, SUCCESS, or FAILURE).
+         * @brief Called once when transitioning from IDLE to RUNNING.
          */
-        BT::NodeStatus tick() override;
+        BT::NodeStatus onStart() override;
 
         /**
-         * @brief Called when the node is halted (e.g., due to a higher-level BT node).
+         * @brief Called every tick while in RUNNING state.
          */
-        void halt() override;
+        BT::NodeStatus onRunning() override;
+
+        /**
+         * @brief Called if this node is halted by force.
+         */
+        void onHalted() override;
 
     private:
-        /**
-         * @brief Callback for receiving the response to the goal request.
-         * @param goal_handle The handle to the goal.
-         */
-        void goal_response_callback(std::shared_ptr<GoalHandlePlanManipulator> goal_handle);
+        // Callbacks for action client
+        void goalResponseCallback(std::shared_ptr<GoalHandlePlanManipulator> goal_handle);
+        void resultCallback(const GoalHandlePlanManipulator::WrappedResult &result);
 
-        /**
-         * @brief Callback for receiving feedback from the plan_manipulator action.
-         * @param goal_handle The handle to the goal.
-         * @param feedback The feedback message.
-         */
-        void feedback_callback(
-            GoalHandlePlanManipulator::SharedPtr goal_handle,
-            const std::shared_ptr<const PlanManipulator::Feedback> feedback);
+        // ROS2 members
+        rclcpp::Node::SharedPtr node_;
+        rclcpp_action::Client<PlanManipulator>::SharedPtr action_client_;
 
-        /**
-         * @brief Callback for receiving the final result of the planning action.
-         * @param result The wrapped result containing the success/failure and trajectory.
-         */
-        void result_callback(const GoalHandlePlanManipulator::WrappedResult &result);
+        // Internal state
+        bool goal_sent_;
+        bool result_received_;
 
-        // ---------------
-        // ROS2 Variables
-        // ---------------
-        rclcpp::Node::SharedPtr node_;                                    ///< Shared pointer to the ROS2 node.
-        rclcpp_action::Client<PlanManipulator>::SharedPtr action_client_; ///< Action client for planning.
-
-        // ---------------
-        // State Variables
-        // ---------------
-        bool goal_sent_;       ///< Indicates whether the goal has been sent.
-        bool result_received_; ///< Indicates whether the final result has been received.
-
-        PlanManipulator::Result result_;                   ///< Stores the result from the action server.
-        std::chrono::steady_clock::time_point start_time_; ///< Start time for measuring action duration.
+        PlanManipulator::Result action_result_;
+        std::string move_id_; ///< Unique move identifier
     };
 
 } // namespace manymove_cpp_trees
 
-#endif // MANYMOVE_CPP_TREES_PLANNING_ACTION_HPP
+#endif

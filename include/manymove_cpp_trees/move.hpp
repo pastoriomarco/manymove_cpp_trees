@@ -34,22 +34,13 @@ namespace manymove_cpp_trees
      */
     struct Move
     {
-        std::string type;                             ///< The movement type: "pose", "joint", "named", or "cartesian".
+        std::string type;                             ///< The movement type
         geometry_msgs::msg::Pose pose_target;         ///< Pose target for "pose" or "cartesian" type.
         std::vector<double> joint_values;             ///< Joint values for "joint" type.
         std::string named_target;                     ///< Named target for "named" type.
         manymove_planner::msg::MovementConfig config; ///< Movement configuration parameters.
-        std::vector<double> start_joint_values;       ///< Starting joint values for planning (optional).
+        std::vector<double> start_joint_values;       ///< Starting joint values for planning.
 
-        /**
-         * @brief Constructor to create a Move object.
-         * @param type The movement type ("pose", "joint", "named", or "cartesian").
-         * @param joint_values The joint values (for "joint" type).
-         * @param pose_target The pose (for "pose" or "cartesian" type).
-         * @param named_target The named target (for "named" type).
-         * @param config The movement configuration.
-         * @param start_joint_values The optional starting joint values.
-         */
         Move(const std::string &type,
              const std::vector<double> &joint_values = {},
              const geometry_msgs::msg::Pose &pose_target = geometry_msgs::msg::Pose(),
@@ -65,16 +56,11 @@ namespace manymove_cpp_trees
         {
         }
 
-        /**
-         * @brief Convert this Move struct into a MoveManipulatorGoal message for planning/execution.
-         * @return A populated MoveManipulatorGoal message reflecting the content of this Move.
-         */
         manymove_planner::msg::MoveManipulatorGoal to_move_manipulator_goal() const
         {
             manymove_planner::msg::MoveManipulatorGoal goal;
             goal.movement_type = type;
 
-            // "pose" and "cartesian" both rely on pose_target
             if (type == "pose" || type == "cartesian")
             {
                 goal.pose_target = pose_target;
@@ -87,7 +73,6 @@ namespace manymove_cpp_trees
             {
                 goal.named_target = named_target;
             }
-
             goal.start_joint_values = start_joint_values;
             goal.config = config;
             return goal;

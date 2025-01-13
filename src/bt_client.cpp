@@ -1,205 +1,181 @@
 #include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>
-#include <geometry_msgs/msg/pose.hpp>
-#include "manymove_cpp_trees/planning_action.hpp"
-#include "manymove_cpp_trees/execute_trajectory.hpp"
-#include "manymove_cpp_trees/behavior_tree_xml_generator.hpp"
-#include "manymove_cpp_trees/move.hpp"
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
+#include "manymove_cpp_trees/planning_action.hpp"
+#include "manymove_cpp_trees/execute_trajectory.hpp"
+#include "manymove_cpp_trees/move.hpp"
+#include "manymove_cpp_trees/tree_helper.hpp"
+
+// std, etc.
 #include <string>
 #include <vector>
-#include <memory>
 #include <unordered_map>
-#include <fstream>
 
 using geometry_msgs::msg::Pose;
 using manymove_cpp_trees::Move;
-using manymove_planner::msg::MovementConfig;
-
-// Helper to create movement configurations
-std::unordered_map<std::string, MovementConfig> defineMovementConfigs()
-{
-    MovementConfig max_move_config;
-    max_move_config.velocity_scaling_factor = 1.0;
-    max_move_config.acceleration_scaling_factor = 1.0;
-    max_move_config.step_size = 0.01;
-    max_move_config.jump_threshold = 0.0;
-    max_move_config.max_cartesian_speed = 0.5;
-    max_move_config.max_exec_tries = 5;
-    max_move_config.plan_number_target = 8;
-    max_move_config.plan_number_limit = 32;
-    max_move_config.smoothing_type = "time_optimal";
-
-    MovementConfig mid_move_config = max_move_config;
-    mid_move_config.velocity_scaling_factor /= 2.0;
-    mid_move_config.acceleration_scaling_factor /= 2.0;
-    mid_move_config.max_cartesian_speed = 0.2;
-
-    MovementConfig slow_move_config = max_move_config;
-    slow_move_config.velocity_scaling_factor /= 4.0;
-    slow_move_config.acceleration_scaling_factor /= 4.0;
-    slow_move_config.max_cartesian_speed = 0.05;
-
-    return {
-        {"max_move", max_move_config},
-        {"mid_move", mid_move_config},
-        {"slow_move", slow_move_config}};
-}
-
-// Helper to create a Pose
-Pose createPose(double x, double y, double z,
-                double qx, double qy, double qz, double qw)
-{
-    Pose pose;
-    pose.position.x = x;
-    pose.position.y = y;
-    pose.position.z = z;
-    pose.orientation.x = qx;
-    pose.orientation.y = qy;
-    pose.orientation.z = qz;
-    pose.orientation.w = qw;
-    return pose;
-}
 
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
+
     auto node = rclcpp::Node::make_shared("bt_client_node");
-    RCLCPP_INFO(node->get_logger(), "BT Client Node started");
+    RCLCPP_INFO(node->get_logger(), "BT Client Node started (Purely Programmatic XML).");
 
-    // 1. Define Movement Configurations
-    auto move_configs = defineMovementConfigs();
+    // 1) Create a blackboard and set "node"
+    auto blackboard = BT::Blackboard::create();
+    blackboard->set("node", node);
+    RCLCPP_INFO(node->get_logger(), "Blackboard: set('node', <rclcpp::Node>)");
 
-    // 2. Define Move Sequences
+    // 2) Setup moves
+    auto move_configs = manymove_cpp_trees::defineMovementConfigs();
 
-    // Define specific joint configurations
     std::vector<double> joint_rest = {0.0, -0.785, 0.785, 0.0, 1.57, 0.0};
     std::vector<double> joint_look_sx = {-0.175, -0.419, 1.378, 0.349, 1.535, -0.977};
     std::vector<double> joint_look_dx = {0.733, -0.297, 1.378, -0.576, 1.692, 1.291};
-
     std::string named_home = "home";
 
-    // Define Poses
-    Pose pick_target = createPose(0.2, -0.1, 0.15, 1.0, 0.0, 0.0, 0.0);
+    Pose pick_target = manymove_cpp_trees::createPose(0.2, -0.1, 0.15, 1.0, 0.0, 0.0, 0.0);
     Pose approach_target = pick_target;
-    approach_target.position.z += 0.02; // Adjust z position for approach
+    approach_target.position.z += 0.02;
 
-    // Define move sequences
+    // Sequences for Prep
     std::vector<Move> rest_position = {
-        {"joint", joint_rest, Pose(), "", move_configs["max_move"]},
-    };
+        {"joint", joint_rest, Pose(), "", move_configs["max_move"]}};
 
     std::vector<Move> scan_surroundings = {
         {"joint", joint_look_sx, Pose(), "", move_configs["max_move"]},
-        {"joint", joint_look_dx, Pose(), "", move_configs["max_move"]},
-    };
+        {"joint", joint_look_dx, Pose(), "", move_configs["max_move"]}};
 
+    std::vector<std::vector<Move>> preparatory_sequences = {
+        rest_position,
+        scan_surroundings};
+
+    // Sequences for Pick/Homing
     std::vector<Move> pick_sequence = {
         {"pose", {}, approach_target, "", move_configs["mid_move"]},
         {"cartesian", {}, pick_target, "", move_configs["slow_move"]},
-        {"cartesian", {}, approach_target, "", move_configs["max_move"]},
-    };
-
+        {"cartesian", {}, approach_target, "", move_configs["max_move"]}};
     std::vector<Move> home_position = {
         {"named", {}, Pose(), named_home, move_configs["max_move"]},
     };
 
-    // Aggregate all sequences
-    std::vector<std::vector<Move>> list_of_sequences = {rest_position, scan_surroundings, pick_sequence, home_position};
+    // Initialize a move_id counter to ensure unique IDs
+    size_t move_id = 0;
 
-    // 3. Initialize BehaviorTree Factory and Register Custom Nodes
+    // 3) Build parallel blocks without local_index
+    std::string par0 = manymove_cpp_trees::buildParallelPlanExecuteXML(
+        "toRest", rest_position);
+
+    std::string par1 = manymove_cpp_trees::buildParallelPlanExecuteXML(
+        "scanAround", scan_surroundings);
+
+    // Combine them in a single <Sequence> for the entire "preparatory" logic
+    std::vector<std::string> prep_parallels = {par0, par1};
+    std::string prep_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPrepSequence", prep_parallels);
+
+    // 4) Build parallel blocks for "pickAndHoming_seq"
+    std::string par2 = manymove_cpp_trees::buildParallelPlanExecuteXML(
+        "pick", pick_sequence);
+
+    std::string par3 = manymove_cpp_trees::buildParallelPlanExecuteXML(
+        "home", home_position);
+
+    std::vector<std::string> pick_parallels = {par2, par3};
+    std::string pick_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPickSequence", pick_parallels);
+
+    // 5) Combine prep_sequence_xml and pick_sequence_xml in a single <Sequence>
+    //    => MasterSequence with two children
+    std::vector<std::string> master_branches = {prep_sequence_xml, pick_sequence_xml};
+    std::string master_body = manymove_cpp_trees::sequenceWrapperXML("GlobalMasterSequence", master_branches);
+
+    // 6) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">
+    std::string final_tree_xml = manymove_cpp_trees::mainTreeWrapperXML("MasterTree", master_body);
+
+    RCLCPP_INFO(node->get_logger(), "=== Programmatically Generated Tree XML ===\n%s", final_tree_xml.c_str());
+
+    // 7) Preload blackboard with the Moves
+    //    Keys => "move_{move_id}"
+    //    Ensures each move has a unique move_id
+    {
+        // Preparatory Sequence: par0 (rest_position) - 1 move
+        for (auto &m : rest_position)
+        {
+            std::string key = "move_" + std::to_string(move_id);
+            blackboard->set(key, std::make_shared<Move>(m));
+            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
+            move_id++;
+        }
+
+        // Preparatory Sequence: par1 (scan_surroundings) - 2 moves
+        for (auto &m : scan_surroundings)
+        {
+            std::string key = "move_" + std::to_string(move_id);
+            blackboard->set(key, std::make_shared<Move>(m));
+            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
+            move_id++;
+        }
+
+        // PickAndHoming Sequence: par2 (pick_sequence) - 3 moves
+        for (auto &m : pick_sequence)
+        {
+            std::string key = "move_" + std::to_string(move_id);
+            blackboard->set(key, std::make_shared<Move>(m));
+            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
+            move_id++;
+        }
+
+        // PickAndHoming Sequence: par3 (home_position) - 1 move
+        for (auto &m : home_position)
+        {
+            std::string key = "move_" + std::to_string(move_id);
+            blackboard->set(key, std::make_shared<Move>(m));
+            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
+            move_id++;
+        }
+    }
+
+    // 8) Register node types
     BT::BehaviorTreeFactory factory;
-
-    // Register custom action nodes
     factory.registerNodeType<manymove_cpp_trees::PlanningAction>("PlanningAction");
     factory.registerNodeType<manymove_cpp_trees::ExecuteTrajectory>("ExecuteTrajectory");
 
-    // 4. Generate XML and Create the Behavior Tree
-
-    // Instantiate the XML generator
-    manymove_cpp_trees::BehaviorTreeXMLGenerator xml_generator(list_of_sequences);
-
-    // Generate the XML string
-    std::string tree_xml = xml_generator.generateXML();
-
-    RCLCPP_INFO(node->get_logger(), "Generated Behavior Tree XML:\n%s", tree_xml.c_str());
-
-    // Save the XML to a file for visualization
-    std::ofstream tree_file("bt_tree.xml");
-    if (tree_file.is_open())
+    // 9) Create the tree from final_tree_xml
+    BT::Tree tree;
+    try
     {
-        tree_file << tree_xml;
-        tree_file.close();
-        RCLCPP_INFO(node->get_logger(), "Behavior Tree XML saved to bt_tree.xml");
+        tree = factory.createTreeFromText(final_tree_xml, blackboard);
     }
-    else
+    catch (const std::exception &ex)
     {
-        RCLCPP_ERROR(node->get_logger(), "Failed to save Behavior Tree XML to file.");
+        RCLCPP_ERROR(node->get_logger(), "Failed to create tree: %s", ex.what());
+        return 1;
     }
 
-    // 5. Set the ROS node on the blackboard for action nodes to access
-    auto blackboard = BT::Blackboard::create();
-    blackboard->set("node", node);
+    // 10) ZMQ publisher (optional)
+    BT::PublisherZMQ publisher(tree);
 
-    // 6. Preload configurations into the blackboard
-    size_t global_move_id = 0;
-    for (const auto &sequence : list_of_sequences)
-    {
-        for (const auto &move : sequence)
-        {
-            // Define a simple key: "move_0", "move_1", etc.
-            std::string move_key = "move_" + std::to_string(global_move_id);
-
-            // Store the Move struct as a shared_ptr
-            auto move_ptr = std::make_shared<Move>(move);
-            blackboard->set(move_key, move_ptr);
-
-            RCLCPP_INFO(node->get_logger(), "Blackboard set: %s", move_key.c_str());
-
-            global_move_id++;
-        }
-    }
-
-    RCLCPP_INFO(node->get_logger(), "Blackboard preloaded with %zu move configurations.", global_move_id);
-
-    // 7. Create the tree from the XML string and the blackboard
-    BT::Tree tree = factory.createTreeFromText(tree_xml, blackboard);
-
-    // 8. Attach a ZMQ Publisher for Groot
-    BT::PublisherZMQ publisher_zmq(tree);
-
-    // 9. Tick the Behavior Tree
-
-    rclcpp::Rate rate(1000); // 1000 Hz
-
+    // 11) Tick the tree
+    rclcpp::Rate rate(1000);
     while (rclcpp::ok())
     {
-        tree.tickRoot();
-
-        BT::NodeStatus status = tree.rootNode()->status();
-
-        // **Add Logging for Tree Status**
-        // RCLCPP_INFO(node->get_logger(), "Behavior Tree Root Status: %s",
-        //             BT::toStr(status).c_str());
+        rclcpp::spin_some(node);
+        BT::NodeStatus status = tree.tickRoot();
 
         if (status == BT::NodeStatus::SUCCESS)
         {
-            RCLCPP_INFO(node->get_logger(), "Behavior Tree completed successfully.");
-            break; // Exit the loop
+            RCLCPP_INFO(node->get_logger(), "BT ended SUCCESS.");
+            break;
         }
         else if (status == BT::NodeStatus::FAILURE)
         {
-            RCLCPP_ERROR(node->get_logger(), "Behavior Tree failed.");
-            break; // Exit the loop
+            RCLCPP_ERROR(node->get_logger(), "BT ended FAILURE.");
+            break;
         }
-
-        rclcpp::spin_some(node);
         rate.sleep();
     }
 
-    // 10. Shutdown
     tree.rootNode()->halt();
     rclcpp::shutdown();
     return 0;

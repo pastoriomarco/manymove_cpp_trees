@@ -1,243 +1,257 @@
 #include "manymove_cpp_trees/execute_trajectory.hpp"
-#include "manymove_cpp_trees/behavior_tree_xml_generator.hpp"
-
+#include <behaviortree_cpp_v3/blackboard.h>
 #include <rclcpp/rclcpp.hpp>
-#include <behaviortree_cpp_v3/behavior_tree.h>
-#include <memory>
 
 namespace manymove_cpp_trees
 {
 
-    ExecuteTrajectory::ExecuteTrajectory(const std::string &name, const BT::NodeConfiguration &config)
-        : BT::AsyncActionNode(name, config),
+    ExecuteTrajectory::ExecuteTrajectory(const std::string &name,
+                                         const BT::NodeConfiguration &config)
+        : BT::StatefulActionNode(name, config),
           goal_sent_(false),
-          result_received_(false)
+          result_received_(false),
+          is_data_ready_(false)
     {
-        // Obtain the ROS node from the blackboard
-        node_ = config.blackboard->get<rclcpp::Node::SharedPtr>("node");
-        if (!node_)
+        if (!config.blackboard)
         {
-            throw BT::RuntimeError("ExecuteTrajectory: node not found on blackboard");
+            throw BT::RuntimeError(
+                "ExecuteTrajectory constructor: no blackboard provided.");
+        }
+        if (!config.blackboard->get("node", node_))
+        {
+            throw BT::RuntimeError(
+                "ExecuteTrajectory constructor: 'node' not found in blackboard.");
         }
 
-        // Initialize the action client
         action_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "execute_manipulator_traj");
-
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: waiting 5s for 'execute_manipulator_traj' server...",
+                    name.c_str());
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError("ExecuteTrajectory: Action server 'execute_manipulator_traj' not available after waiting");
+            throw BT::RuntimeError(
+                "ExecuteTrajectory: 'execute_manipulator_traj' not available after 5s.");
         }
 
-        RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Initialized and connected to action server.", name.c_str());
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: Constructed with node [%s].",
+                    name.c_str(), node_->get_fully_qualified_name());
+
+        // Store blackboard pointer
+        blackboard_ = config.blackboard;
     }
 
-    BT::NodeStatus ExecuteTrajectory::tick()
+    BT::NodeStatus ExecuteTrajectory::onStart()
     {
-        // Log the tick call
-        RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Tick called.", name().c_str());
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: onStart() called.",
+                    name().c_str());
 
-        // Retrieve the trajectory from the input port
-        moveit_msgs::msg::RobotTrajectory trajectory;
-        if (!getInput("trajectory", trajectory))
-        {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Missing required input [trajectory]", name().c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-        else
-        {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Retrieved trajectory with %zu points.",
-                        name().c_str(), trajectory.joint_trajectory.points.size());
-            trajectory_ = trajectory; // Store the trajectory for later use
-        }
+        goal_sent_ = false;
+        result_received_ = false;
+        action_result_ = ExecuteTrajectoryAction::Result();
+        is_data_ready_ = false;
 
-        // Retrieve the planned_move_id from the input port
-        std::string planned_move_id;
-        if (!getInput("planned_move_id", planned_move_id))
-        {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Missing required input [planned_move_id]", name().c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-        else
-        {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Retrieved planned_move_id: %s",
-                        name().c_str(), planned_move_id.c_str());
-        }
+        // Start polling
+        wait_start_time_ = std::chrono::steady_clock::now();
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: Polling for 'planned_move_id', 'trajectory', 'planning_validity'...",
+                    name().c_str());
 
-        // Retrieve planning validity
-        bool planning_validity;
-        if (!getInput("planning_validity", planning_validity) || !planning_validity)
-        {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Invalid or missing planning validity.", name().c_str());
-            return BT::NodeStatus::FAILURE;
-        }
-        else
-        {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Planning validity: %s",
-                        name().c_str(), planning_validity ? "true" : "false");
-        }
+        return BT::NodeStatus::RUNNING;
+    }
 
-        // Proceed with trajectory execution
-        if (!goal_sent_)
+    BT::NodeStatus ExecuteTrajectory::onRunning()
+    {
+        // If we haven't determined data is ready, poll
+        if (!is_data_ready_)
         {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Sending trajectory execution goal...", name().c_str());
-
-            // Validate trajectory
-            if (trajectory.joint_trajectory.points.empty())
+            if (!dataReady())
             {
-                RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Received empty trajectory.", name().c_str());
-                return BT::NodeStatus::FAILURE;
+                // not ready -> keep polling
+                auto elapsed = std::chrono::steady_clock::now() - wait_start_time_;
+                if (elapsed > std::chrono::seconds(10))
+                {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "ExecuteTrajectory [%s]: Timed out (10s) waiting for plan data.",
+                                 name().c_str());
+                    return BT::NodeStatus::FAILURE;
+                }
+                else
+                {
+                    RCLCPP_INFO(node_->get_logger(),
+                                "ExecuteTrajectory [%s]: Still polling => RUNNING",
+                                name().c_str());
+                    return BT::NodeStatus::RUNNING;
+                }
             }
-
-            // Create the action goal
-            ExecuteTrajectoryAction::Goal goal_msg;
-            goal_msg.trajectory = trajectory;
-
-            // Send the goal asynchronously
-            auto send_goal_options = rclcpp_action::Client<ExecuteTrajectoryAction>::SendGoalOptions();
-            send_goal_options.goal_response_callback =
-                std::bind(&ExecuteTrajectory::goal_response_callback, this, std::placeholders::_1);
-            send_goal_options.feedback_callback =
-                std::bind(&ExecuteTrajectory::feedback_callback, this, std::placeholders::_1, std::placeholders::_2);
-            send_goal_options.result_callback =
-                std::bind(&ExecuteTrajectory::result_callback, this, std::placeholders::_1);
-
-            action_client_->async_send_goal(goal_msg, send_goal_options);
-            goal_sent_ = true;
-
-            // Record start time for timeout
-            start_time_ = std::chrono::steady_clock::now();
-
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Goal sent successfully. Waiting for result...", name().c_str());
-            return BT::NodeStatus::RUNNING;
+            else
+            {
+                // data is ready => send goal
+                sendGoal();
+                is_data_ready_ = true;
+                return BT::NodeStatus::RUNNING;
+            }
         }
 
-        // If goal has been sent, wait for the result via callbacks
+        // If the goal was sent, check if we have the result
         if (result_received_)
         {
-            if (result_.success)
+            if (action_result_.success)
             {
-                RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Execution succeeded.", name().c_str());
-
-                // **Set 'planning_validity' to false upon successful execution**
-                config().blackboard->set("planning_validity", false);
-                RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Set 'planning_validity' to false on blackboard.", name().c_str());
-
-                // **Reset State Flags**
-                goal_sent_ = false;
-                result_received_ = false;
-
-                // Set node status to SUCCESS
-                setStatus(BT::NodeStatus::SUCCESS);
+                RCLCPP_INFO(node_->get_logger(),
+                            "ExecuteTrajectory [%s]: Execution SUCCEEDED => SUCCESS.",
+                            name().c_str());
                 return BT::NodeStatus::SUCCESS;
             }
             else
             {
-                RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Execution failed.", name().c_str());
-
-                // **Do not update 'planning_validity' on failure to ensure next planning starts from current position**
-
-                // **Reset State Flags**
-                goal_sent_ = false;
-                result_received_ = false;
-
-                // Set node status to FAILURE
-                setStatus(BT::NodeStatus::FAILURE);
+                RCLCPP_ERROR(node_->get_logger(),
+                             "ExecuteTrajectory [%s]: Execution FAILED => FAILURE.",
+                             name().c_str());
                 return BT::NodeStatus::FAILURE;
             }
         }
 
-        // Timeout handling
-        auto elapsed = std::chrono::steady_clock::now() - start_time_;
-        if (elapsed > std::chrono::seconds(10)) // Timeout after 10 seconds
-        {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Timeout waiting for result.", name().c_str());
-            // **Reset State Flags**
-            goal_sent_ = false;
-            result_received_ = false;
-            return BT::NodeStatus::FAILURE;
-        }
-
-        RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Still waiting for result...", name().c_str());
-        return BT::NodeStatus::RUNNING;
+        return BT::NodeStatus::RUNNING; // still waiting for final result
     }
 
-    void ExecuteTrajectory::halt()
+    void ExecuteTrajectory::onHalted()
     {
-        RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Halt called.", name().c_str());
+        RCLCPP_WARN(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: onHalted => cancel goal if needed.",
+                    name().c_str());
 
         if (goal_sent_ && !result_received_)
         {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Halting, cancelling goal.", name().c_str());
             action_client_->async_cancel_all_goals();
         }
-
-        // Reset state
         goal_sent_ = false;
         result_received_ = false;
+        is_data_ready_ = false;
     }
 
-    void ExecuteTrajectory::goal_response_callback(std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle)
+    bool ExecuteTrajectory::dataReady()
+    {
+        // Attempt to read planned_move_id
+        std::string pmid;
+        if (!getInput<std::string>("planned_move_id", pmid) || pmid.empty())
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: 'planned_move_id' not set => poll again",
+                        name().c_str());
+            return false;
+        }
+        move_id_ = pmid;
+
+        // Attempt to read planning_validity
+        bool validity = false;
+        if (!getInput<bool>("planning_validity", validity) || !validity)
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: planning_validity=false => poll again",
+                        name().c_str());
+            return false;
+        }
+        planning_valid_ = validity;
+
+        // Attempt to read trajectory
+        moveit_msgs::msg::RobotTrajectory t;
+        if (!getInput<moveit_msgs::msg::RobotTrajectory>("trajectory", t) ||
+            t.joint_trajectory.points.empty())
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: 'trajectory' missing/empty => poll again",
+                        name().c_str());
+            return false;
+        }
+        traj_ = t;
+
+        // If all are present, we are ready
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: Data is ready => planned_move_id=%s, valid=%s, %zu pts",
+                    name().c_str(), move_id_.c_str(), (planning_valid_ ? "true" : "false"),
+                    traj_.joint_trajectory.points.size());
+        return true;
+    }
+
+    void ExecuteTrajectory::sendGoal()
+    {
+        if (goal_sent_)
+        {
+            return;
+        }
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: Sending ExecuteTrajectory goal => move_id=%s",
+                    name().c_str(), move_id_.c_str());
+
+        ExecuteTrajectoryAction::Goal goal_msg;
+        goal_msg.trajectory = traj_;
+
+        auto opts = rclcpp_action::Client<ExecuteTrajectoryAction>::SendGoalOptions();
+        opts.goal_response_callback =
+            std::bind(&ExecuteTrajectory::goalResponseCallback, this, std::placeholders::_1);
+        opts.result_callback =
+            std::bind(&ExecuteTrajectory::resultCallback, this, std::placeholders::_1);
+
+        action_client_->async_send_goal(goal_msg, opts);
+        goal_sent_ = true;
+    }
+
+    void ExecuteTrajectory::goalResponseCallback(std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle)
     {
         if (!goal_handle)
         {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Goal was rejected by server.", name().c_str());
-            // Simulate result as failure
-            ExecuteTrajectoryAction::Result failed_result;
-            failed_result.success = false;
-            failed_result.message = "Goal rejected by server.";
-            result_ = failed_result;
+            RCLCPP_ERROR(node_->get_logger(),
+                         "ExecuteTrajectory [%s]: Goal REJECTED by server.",
+                         name().c_str());
+            ExecuteTrajectoryAction::Result fail;
+            fail.success = false;
+            fail.message = "Goal rejected by server.";
+            action_result_ = fail;
             result_received_ = true;
         }
         else
         {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Goal accepted by server.", name().c_str());
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: Goal ACCEPTED by server => waiting for result.",
+                        name().c_str());
         }
     }
 
-    void ExecuteTrajectory::feedback_callback(
-        GoalHandleExecuteTrajectory::SharedPtr /*goal_handle*/,
-        const std::shared_ptr<const ExecuteTrajectoryAction::Feedback> feedback)
+    void ExecuteTrajectory::resultCallback(const GoalHandleExecuteTrajectory::WrappedResult &wrapped_result)
     {
-        RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Progress: %.2f%%",
-                    name().c_str(), feedback->progress * 100.0f);
-    }
-
-    void ExecuteTrajectory::result_callback(const GoalHandleExecuteTrajectory::WrappedResult &result)
-    {
-        if (result.code == rclcpp_action::ResultCode::SUCCEEDED)
+        if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
         {
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Execution succeeded. Result received.", name().c_str());
-            this->result_ = *(result.result);
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: Execution => SUCCEEDED.",
+                        name().c_str());
+            action_result_ = *(wrapped_result.result);
             result_received_ = true;
 
-            // **Set 'planning_validity' to false upon successful execution**
-            config().blackboard->set("planning_validity", false);
-            RCLCPP_INFO(node_->get_logger(), "ExecuteTrajectory [%s]: Set 'planning_validity' to false on blackboard.", name().c_str());
+            // Retrieve the last joint positions from the trajectory
+            if (!traj_.joint_trajectory.points.empty())
+            {
+                auto last_point = traj_.joint_trajectory.points.back();
+                std::vector<double> end_joint_positions = last_point.positions;
 
-            // **Reset State Flags**
-            goal_sent_ = false;
-            result_received_ = false;
-
-            // Set node status to SUCCESS
-            setStatus(BT::NodeStatus::SUCCESS);
+                // Set 'current_joint_positions' in blackboard
+                blackboard_->set("current_joint_positions", end_joint_positions);
+                RCLCPP_INFO(node_->get_logger(),
+                            "ExecuteTrajectory [%s]: Updated 'current_joint_positions' on blackboard.",
+                            name().c_str());
+            }
         }
         else
         {
-            RCLCPP_ERROR(node_->get_logger(), "ExecuteTrajectory [%s]: Execution failed with code %d.", name().c_str(), static_cast<int>(result.code));
-            ExecuteTrajectoryAction::Result failed_result;
-            failed_result.success = false;
-            failed_result.message = "Execution failed.";
-            this->result_ = failed_result;
+            RCLCPP_ERROR(node_->get_logger(),
+                         "ExecuteTrajectory [%s]: Execution => code=%d => FAIL.",
+                         name().c_str(), static_cast<int>(wrapped_result.code));
+            ExecuteTrajectoryAction::Result fail;
+            fail.success = false;
+            fail.message = "Execution failed.";
+            action_result_ = fail;
             result_received_ = true;
-
-            // **Do not update 'planning_validity' on failure to ensure next planning starts from current position**
-
-            // **Reset State Flags**
-            goal_sent_ = false;
-            result_received_ = false;
-
-            // Set node status to FAILURE
-            setStatus(BT::NodeStatus::FAILURE);
         }
     }
 
