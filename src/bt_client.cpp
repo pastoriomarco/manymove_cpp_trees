@@ -3,8 +3,7 @@
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
-#include "manymove_cpp_trees/planning_action.hpp"
-#include "manymove_cpp_trees/execute_trajectory.hpp"
+#include "manymove_cpp_trees/action_nodes.hpp"
 #include "manymove_cpp_trees/move.hpp"
 #include "manymove_cpp_trees/tree_helper.hpp"
 

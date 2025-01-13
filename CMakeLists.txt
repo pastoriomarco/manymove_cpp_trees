@@ -20,8 +20,7 @@ include_directories(include)
 # Add executable for BT client
 add_executable(bt_client
     src/bt_client.cpp
-    src/planning_action.cpp
-    src/execute_trajectory.cpp
+    src/action_nodes.cpp
     src/tree_helper.cpp
 )
 
