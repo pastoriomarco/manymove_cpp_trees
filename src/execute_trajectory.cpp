@@ -36,9 +36,6 @@ namespace manymove_cpp_trees
         RCLCPP_INFO(node_->get_logger(),
                     "ExecuteTrajectory [%s]: Constructed with node [%s].",
                     name.c_str(), node_->get_fully_qualified_name());
-
-        // Store blackboard pointer
-        blackboard_ = config.blackboard;
     }
 
     BT::NodeStatus ExecuteTrajectory::onStart()
@@ -97,6 +94,10 @@ namespace manymove_cpp_trees
         // If the goal was sent, check if we have the result
         if (result_received_)
         {
+            // Invalidate trajectory after execution, regardless of result
+            setOutput("trajectory", moveit_msgs::msg::RobotTrajectory());
+            setOutput("planning_validity", false);
+
             if (action_result_.success)
             {
                 RCLCPP_INFO(node_->get_logger(),
@@ -129,6 +130,17 @@ namespace manymove_cpp_trees
         goal_sent_ = false;
         result_received_ = false;
         is_data_ready_ = false;
+        // Invalidate trajectory on halt
+        setOutput("trajectory", moveit_msgs::msg::RobotTrajectory());
+        setOutput("planning_validity", false);
+
+        // Reset blackboard on halt
+        std::string validity_key = "validity_" + move_id_;
+        config().blackboard->set(validity_key, false);
+
+        std::string trajectory_key = "trajectory_" + move_id_;
+        moveit_msgs::msg::RobotTrajectory empty_traj;
+        config().blackboard->set(trajectory_key, empty_traj);
     }
 
     bool ExecuteTrajectory::dataReady()
@@ -207,7 +219,6 @@ namespace manymove_cpp_trees
                          name().c_str());
             ExecuteTrajectoryAction::Result fail;
             fail.success = false;
-            fail.message = "Goal rejected by server.";
             action_result_ = fail;
             result_received_ = true;
         }
@@ -221,6 +232,15 @@ namespace manymove_cpp_trees
 
     void ExecuteTrajectory::resultCallback(const GoalHandleExecuteTrajectory::WrappedResult &wrapped_result)
     {
+        // **Begin: Update blackboard before returning**
+        std::string validity_key = "validity_" + move_id_;
+        config().blackboard->set(validity_key, false);
+
+        std::string trajectory_key = "trajectory_" + move_id_;
+        moveit_msgs::msg::RobotTrajectory empty_traj;
+        config().blackboard->set(trajectory_key, empty_traj);
+        // **End: Update blackboard before returning**
+
         if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
         {
             RCLCPP_INFO(node_->get_logger(),
@@ -228,19 +248,6 @@ namespace manymove_cpp_trees
                         name().c_str());
             action_result_ = *(wrapped_result.result);
             result_received_ = true;
-
-            // Retrieve the last joint positions from the trajectory
-            if (!traj_.joint_trajectory.points.empty())
-            {
-                auto last_point = traj_.joint_trajectory.points.back();
-                std::vector<double> end_joint_positions = last_point.positions;
-
-                // Set 'current_joint_positions' in blackboard
-                blackboard_->set("current_joint_positions", end_joint_positions);
-                RCLCPP_INFO(node_->get_logger(),
-                            "ExecuteTrajectory [%s]: Updated 'current_joint_positions' on blackboard.",
-                            name().c_str());
-            }
         }
         else
         {
