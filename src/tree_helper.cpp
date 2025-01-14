@@ -55,83 +55,90 @@ namespace manymove_cpp_trees
     }
 
     std::string buildParallelPlanExecuteXML(const std::string &prefix,
-                                            const std::vector<Move> &moves)
+                                            const std::vector<Move> &moves,
+                                            BT::Blackboard::Ptr blackboard,
+                                            bool reset_trajs)
     {
-        /**
-         * We'll create something like:
-         *
-         *   int blockStartID = g_global_move_id; // store the first ID used for this block
-         * <Sequence name="PlanExecute_{prefix}_{blockStartID}">
-         *   <Sequence name="ResetTrajectories_{prefix}_{blockStartID}">
-         *      [reset all traj and validities for the moves of this sequences]
-         *   </Sequence>
-         *   <Parallel name="ParallelPlanExecute_{prefix}_{blockStartID}" success_threshold="2" failure_threshold="1">
-         *     <Sequence name="PlanningSequence_{prefix}_{blockStartID}">
-         *       [ for each Move in moves => use g_global_move_id for the naming and blackboard keys, then increment ]
-         *         <PlanningAction name="PlanMove_{g_global_move_id}" move_id="{g_global_move_id}"
-         *                         planned_move_id="{planned_move_id_{g_global_move_id}}"
-         *                         trajectory="{trajectory_{g_global_move_id}}"
-         *                         planning_validity="{validity_{g_global_move_id}}"/>
-         *     </Sequence>
-         *     <Sequence name="ExecutionSequence_{prefix}_{blockStartID}">
-         *       [ same for ExecMove_{g_global_move_id} ... ]
-         *     </Sequence>
-         *   </Parallel>
-         * </Sequence>
-         */
-
         std::ostringstream xml;
 
         // The first ID used in this block
         int blockStartID = g_global_move_id;
 
-        // Parallel tag
-        xml << "  <Parallel name=\"ParallelPlanExecute_" << prefix << "_" << blockStartID
-            << "\" success_threshold=\"2\" failure_threshold=\"1\">\n";
-
-        // 1) Planning Sequence
-        xml << "    <Sequence name=\"PlanningSequence_" << prefix << "_" << blockStartID << "\">\n";
-
-        // We'll store the IDs of each move in a local array so that the execution side uses the same IDs
+        // Collect move_ids
         std::vector<int> move_ids;
         move_ids.reserve(moves.size());
 
-        for (size_t i = 0; i < moves.size(); i++)
+        // Planning Sequence
+        std::ostringstream planning_seq;
+        planning_seq << "    <Sequence name=\"PlanningSequence_" << prefix << "_" << blockStartID << "\">\n";
+
+        for (const auto &move : moves)
         {
             int this_move_id = g_global_move_id; // unique ID for this move
             move_ids.push_back(this_move_id);
 
-            xml << "      <PlanningAction"
-                << " name=\"PlanMove_" << this_move_id << "\""
-                << " move_id=\"" << this_move_id << "\""
-                << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
-                << " trajectory=\"{trajectory_" << this_move_id << "}\""
-                << " planning_validity=\"{validity_" << this_move_id << "}\""
-                << "/>\n";
+            // Populate the blackboard with the move
+            std::string key = "move_" + std::to_string(this_move_id);
+            blackboard->set(key, std::make_shared<Move>(move));
+            RCLCPP_INFO(rclcpp::get_logger("bt_client_node"),
+                        "BB set: %s", key.c_str());
+
+            planning_seq << "      <PlanningAction"
+                         << " name=\"PlanMove_" << this_move_id << "\""
+                         << " move_id=\"" << this_move_id << "\""
+                         << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
+                         << " trajectory=\"{trajectory_" << this_move_id << "}\""
+                         << " planning_validity=\"{validity_" << this_move_id << "}\""
+                         << "/>\n";
 
             // increment the global ID for the next move
             g_global_move_id++;
         }
 
-        xml << "    </Sequence>\n";
+        planning_seq << "    </Sequence>\n";
 
-        // 2) Execution Sequence
-        xml << "    <Sequence name=\"ExecutionSequence_" << prefix << "_" << blockStartID << "\">\n";
+        // Execution Sequence
+        std::ostringstream execution_seq;
+        execution_seq << "    <Sequence name=\"ExecutionSequence_" << prefix << "_" << blockStartID << "\">\n";
 
-        // Use the same move_ids array
         for (int mid : move_ids)
         {
-            xml << "      <ExecuteTrajectory"
-                << " name=\"ExecMove_" << mid << "\""
-                << " planned_move_id=\"{planned_move_id_" << mid << "}\""
-                << " trajectory=\"{trajectory_" << mid << "}\""
-                << " planning_validity=\"{validity_" << mid << "}\""
-                << "/>\n";
+            execution_seq << "      <ExecuteTrajectory"
+                          << " name=\"ExecMove_" << mid << "\""
+                          << " planned_move_id=\"{planned_move_id_" << mid << "}\""
+                          << " trajectory=\"{trajectory_" << mid << "}\""
+                          << " planning_validity=\"{validity_" << mid << "}\""
+                          << "/>\n";
         }
 
-        xml << "    </Sequence>\n";
+        execution_seq << "    </Sequence>\n";
 
-        xml << "  </Parallel>\n";
+        // Parallel node
+        std::ostringstream parallel_node;
+        parallel_node << "  <Parallel name=\"ParallelPlanExecute_" << prefix << "_" << blockStartID
+                      << "\" success_threshold=\"2\" failure_threshold=\"1\">\n"
+                      << planning_seq.str()
+                      << execution_seq.str()
+                      << "  </Parallel>\n";
+
+        if (reset_trajs)
+        { // ResetTrajectories node
+            std::ostringstream reset_node;
+            reset_node << "  <ResetTrajectories move_ids=\"";
+            for (size_t i = 0; i < move_ids.size(); i++)
+            {
+                reset_node << move_ids[i];
+                if (i != move_ids.size() - 1)
+                    reset_node << ",";
+            }
+            reset_node << "\"/>\n";
+
+            // Insert ResetTrajectories first
+            xml << reset_node.str();
+        }
+
+        // Insert Parallel nodes
+        xml << parallel_node.str();
 
         return xml.str();
     }
@@ -152,15 +159,6 @@ namespace manymove_cpp_trees
     std::string reactiveWrapperXML(const std::string &sequence_name,
                                    const std::vector<std::string> &branches)
     {
-        /**
-         * Creates a ReactiveSequence XML snippet that can be used to wrap multiple branches.
-         *
-         * Example output:
-         *
-         *   <ReactiveSequence name="ReactiveSequence_{sequence_name}">
-         *     {branches}
-         *   </ReactiveSequence>
-         */
         std::ostringstream xml;
         xml << "  <ReactiveSequence name=\"" << sequence_name << "\">\n";
         for (auto &b : branches)
@@ -168,6 +166,22 @@ namespace manymove_cpp_trees
             xml << b << "\n";
         }
         xml << "  </ReactiveSequence>\n";
+        return xml.str();
+    }
+
+    std::string repeatWrapperXML(const std::string &sequence_name,
+                                const std::vector<std::string> &branches,
+                                const int num_cycles)
+    {
+        std::ostringstream xml;
+        xml << "  <Repeat name=\"" << sequence_name << "\" num_cycles=\"" << num_cycles << "\">\n";
+        xml << "    <Sequence name=\"" << sequence_name << "_sequence\">\n";
+        for (const auto &b : branches)
+        {
+            xml << b << "\n";
+        }
+        xml << "    </Sequence>\n";
+        xml << "  </Repeat>\n";
         return xml.str();
     }
 

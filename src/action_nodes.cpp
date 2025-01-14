@@ -490,4 +490,89 @@ namespace manymove_cpp_trees
         }
     }
 
+    ResetTrajectories::ResetTrajectories(const std::string &name, const BT::NodeConfiguration &config)
+        : BT::SyncActionNode(name, config)
+    {
+        // Obtain the ROS node from the blackboard
+        if (!config.blackboard)
+        {
+            throw BT::RuntimeError("ResetTrajectories: no blackboard provided.");
+        }
+        if (!config.blackboard->get("node", node_))
+        {
+            throw BT::RuntimeError("ResetTrajectories: 'node' not found in blackboard.");
+        }
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "ResetTrajectories [%s]: Constructed with node [%s].",
+                    name.c_str(), node_->get_fully_qualified_name());
+    }
+
+    BT::NodeStatus ResetTrajectories::tick()
+    {
+        // Get move_ids from input port
+        std::string move_ids_str;
+        if (!getInput<std::string>("move_ids", move_ids_str))
+        {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "ResetTrajectories [%s]: missing InputPort [move_ids].",
+                         name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Split move_ids_str by comma
+        std::vector<std::string> move_ids;
+        std::stringstream ss(move_ids_str);
+        std::string id;
+        while (std::getline(ss, id, ','))
+        {
+            // Trim whitespace
+            id.erase(0, id.find_first_not_of(" \t"));
+            id.erase(id.find_last_not_of(" \t") + 1);
+            if (!id.empty())
+            {
+                move_ids.push_back(id);
+            }
+        }
+
+        if (move_ids.empty())
+        {
+            RCLCPP_WARN(node_->get_logger(),
+                        "ResetTrajectories [%s]: No move_ids provided to reset.",
+                        name().c_str());
+            return BT::NodeStatus::SUCCESS;
+        }
+
+        // Perform reset for each move_id
+        for (const auto &mid_str : move_ids)
+        {
+            try
+            {
+                int mid = std::stoi(mid_str);
+
+                // Reset trajectory_{id} to empty
+                moveit_msgs::msg::RobotTrajectory empty_traj;
+                std::string traj_key = "trajectory_" + mid_str;
+                config().blackboard->set(traj_key, empty_traj);
+
+                // Reset validity_{id} to false
+                std::string validity_key = "validity_" + mid_str;
+                config().blackboard->set(validity_key, false);
+
+                RCLCPP_INFO(node_->get_logger(),
+                            "ResetTrajectories [%s]: Reset move_id=%d => %s cleared, %s set to false.",
+                            name().c_str(), mid, traj_key.c_str(), validity_key.c_str());
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "ResetTrajectories [%s]: Invalid move_id '%s'. Exception: %s",
+                             name().c_str(), mid_str.c_str(), e.what());
+                // Continue resetting other IDs
+            }
+        }
+
+        return BT::NodeStatus::SUCCESS;
+    }
+
 } // namespace manymove_cpp_trees

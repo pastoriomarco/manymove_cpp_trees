@@ -2,12 +2,12 @@
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
+#include <behaviortree_cpp_v3/decorators/repeat_node.h>
 
 #include "manymove_cpp_trees/action_nodes.hpp"
 #include "manymove_cpp_trees/move.hpp"
 #include "manymove_cpp_trees/tree_helper.hpp"
 
-// std, etc.
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -45,7 +45,8 @@ int main(int argc, char **argv)
 
     std::vector<Move> scan_surroundings = {
         {"joint", joint_look_sx, Pose(), "", move_configs["max_move"]},
-        {"joint", joint_look_dx, Pose(), "", move_configs["max_move"]}};
+        {"joint", joint_look_dx, Pose(), "", move_configs["max_move"]},
+    };
 
     std::vector<std::vector<Move>> preparatory_sequences = {
         rest_position,
@@ -55,8 +56,9 @@ int main(int argc, char **argv)
     std::vector<Move> pick_sequence = {
         {"pose", {}, approach_target, "", move_configs["mid_move"]},
         {"cartesian", {}, pick_target, "", move_configs["slow_move"]},
-        {"cartesian", {}, approach_target, "", move_configs["max_move"]}};
+    };
     std::vector<Move> home_position = {
+        {"cartesian", {}, approach_target, "", move_configs["max_move"]},
         {"named", {}, Pose(), named_home, move_configs["max_move"]},
     };
 
@@ -65,10 +67,10 @@ int main(int argc, char **argv)
 
     // 3) Build parallel blocks without local_index
     std::string par0 = manymove_cpp_trees::buildParallelPlanExecuteXML(
-        "toRest", rest_position);
+        "toRest", rest_position, blackboard);
 
     std::string par1 = manymove_cpp_trees::buildParallelPlanExecuteXML(
-        "scanAround", scan_surroundings);
+        "scanAround", scan_surroundings, blackboard);
 
     // Combine them in a single <Sequence> for the entire "preparatory" logic
     std::vector<std::string> prep_parallels = {par0, par1};
@@ -76,17 +78,21 @@ int main(int argc, char **argv)
 
     // 4) Build parallel blocks for "pickAndHoming_seq"
     std::string par2 = manymove_cpp_trees::buildParallelPlanExecuteXML(
-        "pick", pick_sequence);
+        "pick", pick_sequence, blackboard);
 
     std::string par3 = manymove_cpp_trees::buildParallelPlanExecuteXML(
-        "home", home_position);
+        "home", home_position, blackboard);
 
     std::vector<std::string> pick_parallels = {par2, par3};
     std::string pick_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPickSequence", pick_parallels);
 
-    // 5) Combine prep_sequence_xml and pick_sequence_xml in a single <Sequence>
-    //    => MasterSequence with two children
-    std::vector<std::string> master_branches = {prep_sequence_xml, pick_sequence_xml};
+    // 5) Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
+    //    => RepeatForever with two children
+    //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
+    std::vector<std::string> composite_move_sequences = {prep_sequence_xml, pick_sequence_xml};
+    std::string repeat_wrapper = manymove_cpp_trees::repeatWrapperXML("RepeatForever", composite_move_sequences);
+
+    std::vector<std::string> master_branches = {repeat_wrapper};
     std::string master_body = manymove_cpp_trees::sequenceWrapperXML("GlobalMasterSequence", master_branches);
 
     // 6) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">
@@ -94,53 +100,13 @@ int main(int argc, char **argv)
 
     RCLCPP_INFO(node->get_logger(), "=== Programmatically Generated Tree XML ===\n%s", final_tree_xml.c_str());
 
-    // 7) Preload blackboard with the Moves
-    //    Keys => "move_{move_id}"
-    //    Ensures each move has a unique move_id
-    {
-        // Preparatory Sequence: par0 (rest_position) - 1 move
-        for (auto &m : rest_position)
-        {
-            std::string key = "move_" + std::to_string(move_id);
-            blackboard->set(key, std::make_shared<Move>(m));
-            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
-            move_id++;
-        }
-
-        // Preparatory Sequence: par1 (scan_surroundings) - 2 moves
-        for (auto &m : scan_surroundings)
-        {
-            std::string key = "move_" + std::to_string(move_id);
-            blackboard->set(key, std::make_shared<Move>(m));
-            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
-            move_id++;
-        }
-
-        // PickAndHoming Sequence: par2 (pick_sequence) - 3 moves
-        for (auto &m : pick_sequence)
-        {
-            std::string key = "move_" + std::to_string(move_id);
-            blackboard->set(key, std::make_shared<Move>(m));
-            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
-            move_id++;
-        }
-
-        // PickAndHoming Sequence: par3 (home_position) - 1 move
-        for (auto &m : home_position)
-        {
-            std::string key = "move_" + std::to_string(move_id);
-            blackboard->set(key, std::make_shared<Move>(m));
-            RCLCPP_INFO(node->get_logger(), "BB set: %s", key.c_str());
-            move_id++;
-        }
-    }
-
-    // 8) Register node types
+    // 7) Register node types
     BT::BehaviorTreeFactory factory;
     factory.registerNodeType<manymove_cpp_trees::PlanningAction>("PlanningAction");
     factory.registerNodeType<manymove_cpp_trees::ExecuteTrajectory>("ExecuteTrajectory");
+    factory.registerNodeType<manymove_cpp_trees::ResetTrajectories>("ResetTrajectories");
 
-    // 9) Create the tree from final_tree_xml
+    // 8) Create the tree from final_tree_xml
     BT::Tree tree;
     try
     {
@@ -152,10 +118,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // 10) ZMQ publisher (optional)
+    // 9) ZMQ publisher (optional)
     BT::PublisherZMQ publisher(tree);
 
-    // 11) Tick the tree
+    // 10) Tick the tree
     rclcpp::Rate rate(1000);
     while (rclcpp::ok())
     {

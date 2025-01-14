@@ -144,6 +144,41 @@ namespace manymove_cpp_trees
         BT::Blackboard::Ptr blackboard_;
     };
 
+    /**
+     * @class ResetTrajectories
+     * @brief A synchronous BT node that resets trajectories and their validity in the blackboard.
+     *
+     * It takes a comma-separated list of move_ids and for each, sets 'trajectory_{id}' to empty
+     * and 'validity_{id}' to false in the blackboard.
+     */
+    class ResetTrajectories : public BT::SyncActionNode
+    {
+    public:
+        /**
+         * @brief Constructor for the ResetTrajectories node.
+         * @param name The name of the BT node.
+         * @param config The BT NodeConfiguration (ports, blackboard, etc.).
+         */
+        ResetTrajectories(const std::string &name, const BT::NodeConfiguration &config);
+
+        /**
+         * @brief Define the required/optional ports for this node.
+         */
+        static BT::PortsList providedPorts()
+        {
+            return {BT::InputPort<std::string>("move_ids", "Comma-separated list of move IDs to reset")};
+        }
+
+        /**
+         * @brief Tick function that performs the reset actions.
+         */
+        BT::NodeStatus tick() override;
+
+    private:
+        // ROS2 node
+        rclcpp::Node::SharedPtr node_;
+    };
+
 } // namespace manymove_cpp_trees
 
 #endif
