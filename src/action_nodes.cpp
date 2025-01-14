@@ -91,28 +91,28 @@ namespace manymove_cpp_trees
                     }
                     else
                     {
-                        // Trajectory missing or empty; use current joint state
+                        // Trajectory missing or empty; use empty joint state
                         move_ptr->start_joint_values = {};
                         RCLCPP_WARN(node_->get_logger(),
-                                    "PlanningAction [%s]: Previous trajectory '%s' missing or empty. Using current joint state.",
+                                    "PlanningAction [%s]: Previous trajectory '%s' missing or empty. Using empty joint state.",
                                     name().c_str(), trajectory_key.c_str());
                     }
                 }
                 else
                 {
-                    // Previous move invalid; use current joint state
+                    // Previous move invalid; use empty joint state
                     move_ptr->start_joint_values = {};
                     RCLCPP_WARN(node_->get_logger(),
-                                "PlanningAction [%s]: Previous move_%d is invalid. Using current joint state.",
+                                "PlanningAction [%s]: Previous move_%d is invalid. Using empty joint state.",
                                 name().c_str(), previous_move_id_int);
                 }
             }
             else
             {
-                // First move; use current joint state
+                // First move; use empty joint state
                 move_ptr->start_joint_values = {};
                 RCLCPP_INFO(node_->get_logger(),
-                            "PlanningAction [%s]: First move. Using current joint state.",
+                            "PlanningAction [%s]: First move. Using empty joint state.",
                             name().c_str());
             }
         }
@@ -279,7 +279,7 @@ namespace manymove_cpp_trees
 
         // Start polling
         wait_start_time_ = std::chrono::steady_clock::now();
-        RCLCPP_INFO(node_->get_logger(),
+        RCLCPP_DEBUG(node_->get_logger(),
                     "ExecuteTrajectory [%s]: Polling for 'planned_move_id', 'trajectory', 'planning_validity'...",
                     name().c_str());
 
@@ -304,7 +304,7 @@ namespace manymove_cpp_trees
                 }
                 else
                 {
-                    RCLCPP_INFO(node_->get_logger(),
+                    RCLCPP_DEBUG(node_->get_logger(),
                                 "ExecuteTrajectory [%s]: Still polling => RUNNING",
                                 name().c_str());
                     return BT::NodeStatus::RUNNING;
@@ -377,7 +377,7 @@ namespace manymove_cpp_trees
         std::string pmid;
         if (!getInput<std::string>("planned_move_id", pmid) || pmid.empty())
         {
-            RCLCPP_INFO(node_->get_logger(),
+            RCLCPP_DEBUG(node_->get_logger(),
                         "ExecuteTrajectory [%s]: 'planned_move_id' not set => poll again",
                         name().c_str());
             return false;
@@ -388,7 +388,7 @@ namespace manymove_cpp_trees
         bool validity = false;
         if (!getInput<bool>("planning_validity", validity) || !validity)
         {
-            RCLCPP_INFO(node_->get_logger(),
+            RCLCPP_DEBUG(node_->get_logger(),
                         "ExecuteTrajectory [%s]: planning_validity=false => poll again",
                         name().c_str());
             return false;
@@ -400,7 +400,7 @@ namespace manymove_cpp_trees
         if (!getInput<moveit_msgs::msg::RobotTrajectory>("trajectory", t) ||
             t.joint_trajectory.points.empty())
         {
-            RCLCPP_INFO(node_->get_logger(),
+            RCLCPP_DEBUG(node_->get_logger(),
                         "ExecuteTrajectory [%s]: 'trajectory' missing/empty => poll again",
                         name().c_str());
             return false;
