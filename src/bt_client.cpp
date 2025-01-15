@@ -62,9 +62,6 @@ int main(int argc, char **argv)
         {"named", {}, Pose(), named_home, move_configs["max_move"]},
     };
 
-    // Initialize a move_id counter to ensure unique IDs
-    size_t move_id = 0;
-
     // 3) Build parallel blocks without local_index
     std::string par0 = manymove_cpp_trees::buildParallelPlanExecuteXML(
         "toRest", rest_position, blackboard);

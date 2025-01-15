@@ -105,7 +105,6 @@ namespace manymove_cpp_trees
                 BT::InputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
                 BT::InputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
                 BT::InputPort<bool>("planning_validity", "Indicates if planning was successful")
-                // Removed any reference to sequence_id
             };
         }
 
