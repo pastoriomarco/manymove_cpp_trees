@@ -54,6 +54,7 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<std::string>("move_id", "Unique identifier for the move"),
+                BT::InputPort<std::string>("pose_key", "Blackboard key to store the retrieved pose"),
                 BT::OutputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
                 BT::OutputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
                 BT::OutputPort<bool>("planning_validity", "Indicates if planning was successful")};
@@ -89,7 +90,8 @@ namespace manymove_cpp_trees
         bool result_received_;
 
         PlanManipulator::Result action_result_;
-        std::string move_id_; ///< Unique move identifier
+        std::string move_id_;  ///< Unique move identifier
+        std::string pose_key_; ///< Blackboard key for the dynamic pose
     };
 
     /**
@@ -475,11 +477,10 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<std::string>("object_id", "Identifier of the object"),
-                BT::InputPort<std::string>("first_rotation_axis", "", "First rotation axis (X, Y, Z)"),
-                BT::InputPort<double>("first_rotation_rad", 0.0, "First rotation in radians"),
-                BT::InputPort<std::string>("second_rotation_axis", "", "Second rotation axis (X, Y, Z)"),
-                BT::InputPort<double>("second_rotation_rad", 0.0, "Second rotation in radians"),
-                BT::OutputPort<geometry_msgs::msg::Pose>("modified_pose", "Pose after rotations")};
+                BT::InputPort<std::vector<double>>("transform_xyz_rpy", "Offset and rotation {x, y, z, roll, pitch, yaw}"),
+                BT::InputPort<std::vector<double>>("reference_orientation_rpy", "Reference orientation {roll, pitch, yaw}"),
+                BT::InputPort<std::string>("pose_key", "Blackboard key to store the retrieved pose"),
+                BT::OutputPort<geometry_msgs::msg::Pose>("pose", "Pose after transformations")};
         }
 
     protected:
@@ -514,11 +515,10 @@ namespace manymove_cpp_trees
         bool result_received_;
 
         GetObjectPose::Result action_result_;
-        std::string object_id_;            ///< Unique object identifier
-        std::string first_rotation_axis_;  ///< First rotation axis
-        double first_rotation_rad_;        ///< First rotation angle in radians
-        std::string second_rotation_axis_; ///< Second rotation axis
-        double second_rotation_rad_;       ///< Second rotation angle in radians
+        std::string object_id_;                         ///< Unique object identifier
+        std::vector<double> transform_xyz_rpy_;         ///< Transformation offset and rotation
+        std::vector<double> reference_orientation_rpy_; ///< Reference orientation
+        std::string pose_key_;                          ///< Blackboard key to store the pose
     };
 
 } // namespace manymove_cpp_trees

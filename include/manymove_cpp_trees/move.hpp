@@ -35,20 +35,20 @@ namespace manymove_cpp_trees
     struct Move
     {
         std::string type;                             ///< The movement type
-        geometry_msgs::msg::Pose pose_target;         ///< Pose target for "pose" or "cartesian" type.
+        std::string pose_key;                         ///< Blackboard key for dynamic pose
         std::vector<double> joint_values;             ///< Joint values for "joint" type.
         std::string named_target;                     ///< Named target for "named" type.
         manymove_planner::msg::MovementConfig config; ///< Movement configuration parameters.
         std::vector<double> start_joint_values;       ///< Starting joint values for planning.
 
         Move(const std::string &type,
+             const std::string &pose_key = "",
              const std::vector<double> &joint_values = {},
-             const geometry_msgs::msg::Pose &pose_target = geometry_msgs::msg::Pose(),
              const std::string &named_target = "",
              const manymove_planner::msg::MovementConfig &config = defaultMovementConfig(),
              const std::vector<double> &start_joint_values = {})
             : type(type),
-              pose_target(pose_target),
+              pose_key(pose_key),
               joint_values(joint_values),
               named_target(named_target),
               config(config),
@@ -63,7 +63,9 @@ namespace manymove_cpp_trees
 
             if (type == "pose" || type == "cartesian")
             {
-                goal.pose_target = pose_target;
+                // Retrieve pose from blackboard using pose_key
+                // This will be handled in the PlanningAction node
+                // goal.pose_target = pose_target;
             }
             else if (type == "joint")
             {

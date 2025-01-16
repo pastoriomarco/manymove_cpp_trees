@@ -89,6 +89,7 @@ namespace manymove_cpp_trees
                          << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
                          << " trajectory=\"{trajectory_" << this_move_id << "}\""
                          << " planning_validity=\"{validity_" << this_move_id << "}\""
+                         << " pose_key=\"" << move.pose_key << "\""
                          << "/>\n";
 
             // increment the global ID for the next move
@@ -221,9 +222,14 @@ namespace manymove_cpp_trees
     std::string serializePose(const geometry_msgs::msg::Pose &pose)
     {
         std::ostringstream oss;
-        oss << "position: {x: " << pose.position.x << ", y: " << pose.position.y << ", z: " << pose.position.z << "}, ";
-        oss << "orientation: {x: " << pose.orientation.x << ", y: " << pose.orientation.y << ", ";
-        oss << "z: " << pose.orientation.z << ", w: " << pose.orientation.w << "}";
+        oss << "position: {x: " << pose.position.x
+            << ", y: " << pose.position.y
+            << ", z: " << pose.position.z
+            << "}, orientation: {x: " << pose.orientation.x
+            << ", y: " << pose.orientation.y
+            << ", z: " << pose.orientation.z
+            << ", w: " << pose.orientation.w
+            << "}";
         return oss.str();
     }
 
@@ -250,8 +256,6 @@ namespace manymove_cpp_trees
         std::ostringstream xml;
         xml << "<" << objectActionTypeToString(action.type) << " ";
         xml << "name=\"" << node_name << "\" ";
-
-        // Common attribute: object_id
         xml << "object_id=\"" << action.object_id << "\" ";
 
         // Handle different action types
@@ -302,11 +306,17 @@ namespace manymove_cpp_trees
         }
         case ObjectActionType::GET_POSE:
         {
-            // Rotation attributes
-            xml << "first_rotation_axis=\"" << action.first_rotation_axis << "\" ";
-            xml << "first_rotation_rad=\"" << action.first_rotation_rad << "\" ";
-            xml << "second_rotation_axis=\"" << action.second_rotation_axis << "\" ";
-            xml << "second_rotation_rad=\"" << action.second_rotation_rad << "\" ";
+            // Serialize transform_xyz_rpy and reference_orientation_rpy
+            std::string transform_str = serializeVector(action.transform_xyz_rpy);
+            std::string reference_orient_str = serializeVector(action.reference_orientation_rpy);
+            xml << "transform_xyz_rpy=\"" << transform_str << "\" ";
+            xml << "reference_orientation_rpy=\"" << reference_orient_str << "\" ";
+
+            // Serialize pose_key if it's not empty
+            if (!action.pose_key.empty())
+            {
+                xml << "pose_key=\"" << action.pose_key << "\" ";
+            }
             break;
         }
         default:
@@ -319,106 +329,31 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
-    // std::string buildAddObjectActionXML(const std::string &prefix,
-    //                                     const std::string &object_id,
-    //                                     const std::string &shape,
-    //                                     const std::vector<double> &dimensions,
-    //                                     const geometry_msgs::msg::Pose &pose,
-    //                                     const std::string &mesh_file,
-    //                                     double scale_x,
-    //                                     double scale_y,
-    //                                     double scale_z)
-    // {
-    //     std::string node_name = prefix + "_AddObject";
-    //     std::string xml = "<AddCollisionObjectAction name=\"" + node_name + "\">\n";
-    //     xml += "    <InputPort name=\"object_id\" type=\"std::string\" value=\"" + object_id + "\"/>\n";
-    //     xml += "    <InputPort name=\"shape\" type=\"std::string\" value=\"" + shape + "\"/>\n";
+    geometry_msgs::msg::Pose poseBuilderRPY(const double &x,
+                                            const double &y,
+                                            const double &z,
+                                            const double &roll,
+                                            const double &pitch,
+                                            const double &yaw)
+    {
+        auto pose = geometry_msgs::msg::Pose();
 
-    //     if (shape != "mesh")
-    //     {
-    //         xml += "    <InputPort name=\"dimensions\" type=\"std::vector<double>\" value=\"[";
-    //         for (size_t i = 0; i < dimensions.size(); ++i)
-    //         {
-    //             xml += std::to_string(dimensions[i]);
-    //             if (i != dimensions.size() - 1)
-    //                 xml += ", ";
-    //         }
-    //         xml += "]\"/>\n";
-    //     }
+        // Set position
+        pose.position.x = x;
+        pose.position.y = y;
+        pose.position.z = z;
 
-    //     // Serialize Pose
-    //     std::string pose_str = "[" + std::to_string(pose.position.x) + ", " + std::to_string(pose.position.y) + ", " + std::to_string(pose.position.z) + ", " + std::to_string(pose.orientation.x) + ", " + std::to_string(pose.orientation.y) + ", " + std::to_string(pose.orientation.z) + ", " + std::to_string(pose.orientation.w) + "]";
-    //     xml += "    <InputPort name=\"pose\" type=\"geometry_msgs::msg::Pose\" value=\"" + pose_str + "\"/>\n";
+        // Convert roll, pitch, yaw to a quaternion
+        tf2::Quaternion quaternion;
+        quaternion.setRPY(roll, pitch, yaw);
 
-    //     if (shape == "mesh")
-    //     {
-    //         xml += "    <InputPort name=\"mesh_file\" type=\"std::string\" value=\"" + mesh_file + "\"/>\n";
-    //         xml += "    <InputPort name=\"scale_mesh_x\" type=\"double\" value=\"" + std::to_string(scale_x) + "\"/>\n";
-    //         xml += "    <InputPort name=\"scale_mesh_y\" type=\"double\" value=\"" + std::to_string(scale_y) + "\"/>\n";
-    //         xml += "    <InputPort name=\"scale_mesh_z\" type=\"double\" value=\"" + std::to_string(scale_z) + "\"/>\n";
-    //     }
+        // Set orientation
+        pose.orientation.x = quaternion.x();
+        pose.orientation.y = quaternion.y();
+        pose.orientation.z = quaternion.z();
+        pose.orientation.w = quaternion.w();
 
-    //     // Define output ports if needed (e.g., for logging or confirmation)
-    //     xml += "</AddCollisionObjectAction>\n";
-    //     return xml;
-    // }
-
-    // std::string buildRemoveObjectActionXML(const std::string &prefix,
-    //                                        const std::string &object_id)
-    // {
-    //     std::string node_name = prefix + "_RemoveObject";
-    //     std::string xml = "<RemoveCollisionObjectAction name=\"" + node_name + "\">\n";
-    //     xml += "    <InputPort name=\"object_id\" type=\"std::string\" value=\"" + object_id + "\"/>\n";
-    //     xml += "</RemoveCollisionObjectAction>\n";
-    //     return xml;
-    // }
-
-    // std::string buildAttachDetachObjectActionXML(const std::string &prefix,
-    //                                              const std::string &object_id,
-    //                                              const std::string &link_name,
-    //                                              bool attach)
-    // {
-    //     std::string node_type = attach ? "AttachDetachObjectAction" : "AttachDetachObjectAction"; // Same node type, different parameters
-    //     std::string action = attach ? "attach" : "detach";
-    //     std::string node_name = prefix + "_" + (attach ? "Attach" : "Detach") + "Object";
-    //     std::string xml = "<AttachDetachObjectAction name=\"" + node_name + "\">\n";
-    //     xml += "    <InputPort name=\"object_id\" type=\"std::string\" value=\"" + object_id + "\"/>\n";
-    //     xml += "    <InputPort name=\"link_name\" type=\"std::string\" value=\"" + link_name + "\"/>\n";
-    //     xml += "    <InputPort name=\"attach\" type=\"bool\" value=\"" + std::string(attach ? "true" : "false") + "\"/>\n";
-    //     xml += "</AttachDetachObjectAction>\n";
-    //     return xml;
-    // }
-
-    // std::string buildCheckObjectExistsActionXML(const std::string &prefix,
-    //                                             const std::string &object_id)
-    // {
-    //     std::string node_name = prefix + "_CheckObjectExists";
-    //     std::string xml = "<CheckObjectExistsAction name=\"" + node_name + "\">\n";
-    //     xml += "    <InputPort name=\"object_id\" type=\"std::string\" value=\"" + object_id + "\"/>\n";
-    //     xml += "    <OutputPort name=\"exists\" type=\"bool\"/>\n";
-    //     xml += "    <OutputPort name=\"is_attached\" type=\"bool\"/>\n";
-    //     xml += "    <OutputPort name=\"link_name\" type=\"std::string\"/>\n";
-    //     xml += "</CheckObjectExistsAction>\n";
-    //     return xml;
-    // }
-
-    // std::string buildGetObjectPoseActionXML(const std::string &prefix,
-    //                                         const std::string &object_id,
-    //                                         const std::string &first_rotation_axis,
-    //                                         double first_rotation_rad,
-    //                                         const std::string &second_rotation_axis,
-    //                                         double second_rotation_rad)
-    // {
-    //     std::string node_name = prefix + "_GetObjectPose";
-    //     std::string xml = "<GetObjectPoseAction name=\"" + node_name + "\">\n";
-    //     xml += "    <InputPort name=\"object_id\" type=\"std::string\" value=\"" + object_id + "\"/>\n";
-    //     xml += "    <InputPort name=\"first_rotation_axis\" type=\"std::string\" value=\"" + first_rotation_axis + "\"/>\n";
-    //     xml += "    <InputPort name=\"first_rotation_rad\" type=\"double\" value=\"" + std::to_string(first_rotation_rad) + "\"/>\n";
-    //     xml += "    <InputPort name=\"second_rotation_axis\" type=\"std::string\" value=\"" + second_rotation_axis + "\"/>\n";
-    //     xml += "    <InputPort name=\"second_rotation_rad\" type=\"double\" value=\"" + std::to_string(second_rotation_rad) + "\"/>\n";
-    //     xml += "    <OutputPort name=\"modified_pose\" type=\"geometry_msgs::msg::Pose\"/>\n";
-    //     xml += "</GetObjectPoseAction>\n";
-    //     return xml;
-    // }
+        return pose;
+    }
 
 } // namespace manymove_cpp_trees

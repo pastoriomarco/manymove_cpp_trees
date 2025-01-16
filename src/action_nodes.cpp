@@ -127,12 +127,47 @@ namespace manymove_cpp_trees
         }
         // **End: Set start_joint_values based on previous move**
 
+        geometry_msgs::msg::Pose dynamic_pose;
+        manymove_planner::msg::MoveManipulatorGoal move_goal;
+
+        // **Begin: Retrieve dynamic pose using pose_key**
+        if (move_ptr->type == "pose" || move_ptr->type == "cartesian")
+        {
+            pose_key_ = move_ptr->pose_key;
+            if (!config().blackboard->get(pose_key_, dynamic_pose))
+            {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "PlanningAction [%s]: Failed to retrieve pose from blackboard key '%s'.",
+                             name().c_str(), pose_key_.c_str());
+                return BT::NodeStatus::FAILURE;
+            }
+
+            // Log the retrieved pose
+            RCLCPP_INFO(node_->get_logger(),
+                        "PlanningAction [%s]: Retrieved pose from '%s' - Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                        name().c_str(), pose_key_.c_str(),
+                        dynamic_pose.position.x, dynamic_pose.position.y, dynamic_pose.position.z,
+                        dynamic_pose.orientation.x, dynamic_pose.orientation.y, dynamic_pose.orientation.z, dynamic_pose.orientation.w);
+
+            // Assign the dynamic pose to the goal
+            move_goal.pose_target = dynamic_pose;
+
+            RCLCPP_INFO(node_->get_logger(),
+                        "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                        name().c_str(),
+                        move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
+                        move_goal.pose_target.orientation.x, move_goal.pose_target.orientation.y, move_goal.pose_target.orientation.z, move_goal.pose_target.orientation.w);
+        }
+        // **End: Retrieve dynamic pose using pose_key**
+
+        // Assign Move to goal
+        move_goal = move_ptr->to_move_manipulator_goal();
+
         RCLCPP_INFO(node_->get_logger(),
                     "PlanningAction [%s]: sending plan goal => move_id=%s",
                     name().c_str(), move_id_.c_str());
 
-        // Convert Move to goal
-        auto move_goal = move_ptr->to_move_manipulator_goal();
+        // Assign goal message to send
         PlanManipulator::Goal goal_msg;
         goal_msg.goal = move_goal;
 
@@ -1203,9 +1238,7 @@ namespace manymove_cpp_trees
     GetObjectPoseAction::GetObjectPoseAction(const std::string &name, const BT::NodeConfiguration &config)
         : BT::StatefulActionNode(name, config),
           goal_sent_(false),
-          result_received_(false),
-          first_rotation_rad_(0.0),
-          second_rotation_rad_(0.0)
+          result_received_(false)
     {
         // Obtain the ROS node from the blackboard
         if (!config.blackboard)
@@ -1242,18 +1275,42 @@ namespace manymove_cpp_trees
             return BT::NodeStatus::FAILURE;
         }
 
-        getInput<std::string>("first_rotation_axis", first_rotation_axis_);
-        getInput<double>("first_rotation_rad", first_rotation_rad_);
-        getInput<std::string>("second_rotation_axis", second_rotation_axis_);
-        getInput<double>("second_rotation_rad", second_rotation_rad_);
+        if (!getInput<std::vector<double>>("transform_xyz_rpy", transform_xyz_rpy_))
+        {
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'transform_xyz_rpy'.");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        if (!getInput<std::vector<double>>("reference_orientation_rpy", reference_orientation_rpy_))
+        {
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'reference_orientation_rpy'.");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        if (!getInput<std::string>("pose_key", pose_key_))
+        {
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'pose_key'.");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Validate input sizes
+        if (transform_xyz_rpy_.size() != 6)
+        {
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'transform_xyz_rpy' must have exactly 6 elements.");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        if (reference_orientation_rpy_.size() != 3)
+        {
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'reference_orientation_rpy' must have exactly 3 elements.");
+            return BT::NodeStatus::FAILURE;
+        }
 
         // Create and send the goal
-        auto goal_msg = GetObjectPose::Goal();
+        GetObjectPose::Goal goal_msg;
         goal_msg.object_id = object_id_;
-        goal_msg.first_rotation_axis = first_rotation_axis_;
-        goal_msg.first_rotation_rad = first_rotation_rad_;
-        goal_msg.second_rotation_axis = second_rotation_axis_;
-        goal_msg.second_rotation_rad = second_rotation_rad_;
+        goal_msg.transform_xyz_rpy = transform_xyz_rpy_;
+        goal_msg.reference_orientation_rpy = reference_orientation_rpy_;
 
         RCLCPP_INFO(node_->get_logger(), "GetObjectPoseAction: Sending goal for object '%s'.", object_id_.c_str());
 
@@ -1275,13 +1332,27 @@ namespace manymove_cpp_trees
         {
             if (action_result_.success)
             {
-                RCLCPP_INFO(node_->get_logger(), "GetObjectPoseAction: Successfully retrieved and modified pose for object '%s'.", object_id_.c_str());
-                setOutput("modified_pose", action_result_.pose);
+                // Set the output port "pose"
+                setOutput("pose", action_result_.pose);
+
+                RCLCPP_INFO(node_->get_logger(), "GetObjectPoseAction: Successfully retrieved pose. Storing in '%s'.", pose_key_.c_str());
+
+                // Optional: Log the new pose
+                RCLCPP_INFO(node_->get_logger(), "New pose for '%s': Position (%2f, %2f, %2f), Orientation (%2f, %2f, %2f, %2f)",
+                            pose_key_.c_str(),
+                            action_result_.pose.position.x,
+                            action_result_.pose.position.y,
+                            action_result_.pose.position.z,
+                            action_result_.pose.orientation.x,
+                            action_result_.pose.orientation.y,
+                            action_result_.pose.orientation.z,
+                            action_result_.pose.orientation.w);
+
                 return BT::NodeStatus::SUCCESS;
             }
             else
             {
-                RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Failed to retrieve pose for object '%s'. Message: %s", object_id_.c_str(), action_result_.message.c_str());
+                RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Failed to retrieve pose. Message: %s", action_result_.message.c_str());
                 return BT::NodeStatus::FAILURE;
             }
         }
@@ -1308,7 +1379,6 @@ namespace manymove_cpp_trees
         if (!goal_handle)
         {
             RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Goal was rejected by the server.");
-            // You can set action_result_ here if needed
             result_received_ = true;
         }
         else

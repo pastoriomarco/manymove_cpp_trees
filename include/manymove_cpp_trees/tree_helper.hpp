@@ -11,6 +11,7 @@
 #include <vector>
 #include <unordered_map>
 #include <geometry_msgs/msg/pose.hpp>
+#include <tf2/LinearMath/Quaternion.h>
 
 namespace manymove_cpp_trees
 {
@@ -149,76 +150,22 @@ namespace manymove_cpp_trees
      */
     std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action, BT::Blackboard::Ptr blackboard);
 
-    // /**
-    //  * @brief Builds the XML string for an AddCollisionObjectAction node.
-    //  * @param prefix Prefix for the node's name.
-    //  * @param object_id Unique identifier for the object.
-    //  * @param shape Shape type (e.g., "box", "mesh").
-    //  * @param dimensions Dimensions for the shape (width, height, depth). Ignored if shape is "mesh".
-    //  * @param pose Pose of the object.
-    //  * @param mesh_file Path to the mesh file. Required if shape is "mesh".
-    //  * @param scale_x Scale factor along X-axis for mesh objects.
-    //  * @param scale_y Scale factor along Y-axis for mesh objects.
-    //  * @param scale_z Scale factor along Z-axis for mesh objects.
-    //  * @return XML string defining the AddCollisionObjectAction node.
-    //  */
-    // std::string buildAddObjectActionXML(const std::string &prefix,
-    //                                     const std::string &object_id,
-    //                                     const std::string &shape,
-    //                                     const std::vector<double> &dimensions,
-    //                                     const geometry_msgs::msg::Pose &pose,
-    //                                     const std::string &mesh_file = "",
-    //                                     double scale_x = 1.0,
-    //                                     double scale_y = 1.0,
-    //                                     double scale_z = 1.0);
-
-    // /**
-    //  * @brief Builds the XML string for a RemoveCollisionObjectAction node.
-    //  * @param prefix Prefix for the node's name.
-    //  * @param object_id Unique identifier for the object.
-    //  * @return XML string defining the RemoveCollisionObjectAction node.
-    //  */
-    // std::string buildRemoveObjectActionXML(const std::string &prefix,
-    //                                        const std::string &object_id);
-
-    // /**
-    //  * @brief Builds the XML string for an AttachDetachObjectAction node.
-    //  * @param prefix Prefix for the node's name.
-    //  * @param object_id Unique identifier for the object.
-    //  * @param link_name Name of the robot link to attach/detach the object.
-    //  * @param attach True to attach, False to detach.
-    //  * @return XML string defining the AttachDetachObjectAction node.
-    //  */
-    // std::string buildAttachDetachObjectActionXML(const std::string &prefix,
-    //                                              const std::string &object_id,
-    //                                              const std::string &link_name,
-    //                                              bool attach = true);
-
-    // /**
-    //  * @brief Builds the XML string for a CheckObjectExistsAction node.
-    //  * @param prefix Prefix for the node's name.
-    //  * @param object_id Unique identifier for the object.
-    //  * @return XML string defining the CheckObjectExistsAction node.
-    //  */
-    // std::string buildCheckObjectExistsActionXML(const std::string &prefix,
-    //                                             const std::string &object_id);
-
-    // /**
-    //  * @brief Builds the XML string for a GetObjectPoseAction node.
-    //  * @param prefix Prefix for the node's name.
-    //  * @param object_id Unique identifier for the object.
-    //  * @param first_rotation_axis First rotation axis (e.g., "X", "Y", "Z").
-    //  * @param first_rotation_rad First rotation angle in radians.
-    //  * @param second_rotation_axis Second rotation axis (e.g., "X", "Y", "Z").
-    //  * @param second_rotation_rad Second rotation angle in radians.
-    //  * @return XML string defining the GetObjectPoseAction node.
-    //  */
-    // std::string buildGetObjectPoseActionXML(const std::string &prefix,
-    //                                         const std::string &object_id,
-    //                                         const std::string &first_rotation_axis,
-    //                                         double first_rotation_rad,
-    //                                         const std::string &second_rotation_axis,
-    //                                         double second_rotation_rad);
+    /**
+     * @brief Returns a pose with quaterion built from rpy values.
+     * @param x offset about X axis.
+     * @param y offset about Y axis.
+     * @param x offset about Z axis.
+     * @param roll rotation about X axis.
+     * @param pitch rotation about Y axis.
+     * @param yaw rotation about Z axis.
+     * @return geometry_msgs::msg::Pose corresponding to the values inserted
+     */
+    geometry_msgs::msg::Pose poseBuilderRPY(const double &x = 0.0,
+                                            const double &y = 0.0,
+                                            const double &z = 0.0,
+                                            const double &roll = 0.0,
+                                            const double &pitch = 0.0,
+                                            const double &yaw = 0.0);
 
 } // namespace manymove_cpp_trees
 

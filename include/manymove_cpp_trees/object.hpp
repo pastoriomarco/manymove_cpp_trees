@@ -1,5 +1,3 @@
-// src/manymove_cpp_trees/include/manymove_cpp_trees/object.hpp
-
 #ifndef MANYMOVE_CPP_TREES_OBJECT_HPP
 #define MANYMOVE_CPP_TREES_OBJECT_HPP
 
@@ -15,12 +13,12 @@ namespace manymove_cpp_trees
      */
     enum class ObjectActionType
     {
-        ADD,        ///< Add a new object to the planning scene.
-        REMOVE,     ///< Remove an existing object from the planning scene.
-        ATTACH,     ///< Attach an object to a specific robot link.
-        DETACH,     ///< Detach an object from a specific robot link.
-        CHECK,      ///< Check if an object exists and its attachment status.
-        GET_POSE    ///< Retrieve and possibly modify the pose of an object.
+        ADD,     ///< Add a new object to the planning scene.
+        REMOVE,  ///< Remove an existing object from the planning scene.
+        ATTACH,  ///< Attach an object to a specific robot link.
+        DETACH,  ///< Detach an object from a specific robot link.
+        CHECK,   ///< Check if an object exists and its attachment status.
+        GET_POSE ///< Retrieve and possibly modify the pose of an object.
     };
 
     /**
@@ -29,33 +27,32 @@ namespace manymove_cpp_trees
      */
     struct ObjectAction
     {
-        ObjectActionType type;             ///< The type of object action.
-        std::string object_id;             ///< Unique identifier for the object.
-        
+        ObjectActionType type; ///< The type of object action.
+        std::string object_id; ///< Unique identifier for the object.
+
         // Parameters for ADD action
-        std::string shape;                  ///< Shape type (e.g., box, mesh).
-        std::vector<double> dimensions;     ///< Dimensions for primitive shapes (e.g., width, height, depth).
-        geometry_msgs::msg::Pose pose;      ///< Pose of the object in the planning scene.
-        std::string mesh_file;              ///< Path to the mesh file (required if shape is mesh).
-        double scale_mesh_x = 1.0;          ///< Scale factor along the X-axis for mesh objects.
-        double scale_mesh_y = 1.0;          ///< Scale factor along the Y-axis for mesh objects.
-        double scale_mesh_z = 1.0;          ///< Scale factor along the Z-axis for mesh objects.
-        
+        std::string shape;              ///< Shape type (e.g., box, mesh).
+        std::vector<double> dimensions; ///< Dimensions for primitive shapes (e.g., width, height, depth).
+        geometry_msgs::msg::Pose pose;  ///< Pose of the object in the planning scene.
+        std::string mesh_file;          ///< Path to the mesh file (required if shape is mesh).
+        double scale_mesh_x = 1.0;      ///< Scale factor along the X-axis for mesh objects.
+        double scale_mesh_y = 1.0;      ///< Scale factor along the Y-axis for mesh objects.
+        double scale_mesh_z = 1.0;      ///< Scale factor along the Z-axis for mesh objects.
+
         // Parameters for ATTACH and DETACH actions
-        std::string link_name;              ///< Name of the robot link to attach/detach the object.
-        bool attach = true;                 ///< Flag indicating whether to attach (true) or detach (false) the object.
-        
+        std::string link_name; ///< Name of the robot link to attach/detach the object.
+        bool attach = true;    ///< Flag indicating whether to attach (true) or detach (false) the object.
+
         // Parameters for GET_POSE action
-        std::string first_rotation_axis;    ///< First rotation axis (e.g., "X", "Y", "Z").
-        double first_rotation_rad = 0.0;    ///< First rotation angle in radians.
-        std::string second_rotation_axis;   ///< Second rotation axis (e.g., "X", "Y", "Z").
-        double second_rotation_rad = 0.0;   ///< Second rotation angle in radians.
-        
+        std::vector<double> transform_xyz_rpy;         ///< Linear transform in x, y and z and rotation in roll, pitch, yaw of the pose of the object
+        std::vector<double> reference_orientation_rpy; ///< Reference orientation for the pose transform of the pose
+        std::string pose_key;                          ///< Blackboard key to store the retrieved pose (used only for GET_POSE).
+
         /**
          * @brief Default constructor.
          */
         ObjectAction() = default;
-        
+
         /**
          * @brief Parameterized constructor for ADD action.
          * @param obj_id Unique identifier for the object.
@@ -68,12 +65,12 @@ namespace manymove_cpp_trees
          * @param sz Scale factor Z.
          */
         ObjectAction(const std::string &obj_id, const std::string &shp,
-                    const std::vector<double> &dims, const geometry_msgs::msg::Pose &ps,
-                    const std::string &mesh = "", double sx = 1.0, double sy = 1.0, double sz = 1.0)
+                     const std::vector<double> &dims, const geometry_msgs::msg::Pose &ps,
+                     const std::string &mesh = "", double sx = 1.0, double sy = 1.0, double sz = 1.0)
             : type(ObjectActionType::ADD), object_id(obj_id), shape(shp),
               dimensions(dims), pose(ps), mesh_file(mesh),
               scale_mesh_x(sx), scale_mesh_y(sy), scale_mesh_z(sz) {}
-        
+
         /**
          * @brief Parameterized constructor for ATTACH/DETACH action.
          * @param obj_id Unique identifier for the object.
@@ -83,27 +80,25 @@ namespace manymove_cpp_trees
         ObjectAction(const std::string &obj_id, const std::string &link, bool att)
             : type(att ? ObjectActionType::ATTACH : ObjectActionType::DETACH),
               object_id(obj_id), link_name(link), attach(att) {}
-        
+
         /**
          * @brief Parameterized constructor for CHECK action.
          * @param obj_id Unique identifier for the object.
          */
         ObjectAction(const std::string &obj_id)
             : type(ObjectActionType::CHECK), object_id(obj_id) {}
-        
+
         /**
          * @brief Parameterized constructor for GET_POSE action.
          * @param obj_id Unique identifier for the object.
-         * @param first_axis First rotation axis.
-         * @param first_rad First rotation angle in radians.
-         * @param second_axis Second rotation axis.
-         * @param second_rad Second rotation angle in radians.
+         * @param xyz_rpy Offset values in format {x, y, z, roll, pitch, yaw}.
+         * @param rpy Reference orientation in format {roll, pitch, yaw}.
+         * @param key Blackboard key to store the retrieved pose.
          */
-        ObjectAction(const std::string &obj_id, const std::string &first_axis, double first_rad,
-                    const std::string &second_axis, double second_rad)
+        ObjectAction(const std::string &obj_id, const std::string &key, const std::vector<double> &xyz_rpy = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, const std::vector<double> &rpy = {0.0, 0.0, 0.0})
             : type(ObjectActionType::GET_POSE), object_id(obj_id),
-              first_rotation_axis(first_axis), first_rotation_rad(first_rad),
-              second_rotation_axis(second_axis), second_rotation_rad(second_rad) {}
+              pose_key(key),
+              transform_xyz_rpy(xyz_rpy), reference_orientation_rpy(rpy) {}
     };
 
     /**
@@ -111,12 +106,15 @@ namespace manymove_cpp_trees
      * @param object_id Unique identifier for the object.
      * @param dimensions Dimensions of the box (width, height, depth).
      * @param pose Pose of the object.
+     * @param object_type Type of primitive object, possible values: box, cylinder, sphere.
      * @return Configured ObjectAction.
      */
-    inline ObjectAction createAddBoxObject(const std::string &object_id, const std::vector<double> &dimensions,
-                                           const geometry_msgs::msg::Pose &pose)
+    inline ObjectAction createAddPrimitiveObject(const std::string &object_id,
+                                                 const std::string &object_type,
+                                                 const std::vector<double> &dimensions,
+                                                 const geometry_msgs::msg::Pose &pose)
     {
-        return ObjectAction(object_id, "box", dimensions, pose);
+        return ObjectAction(object_id, object_type, dimensions, pose);
     }
 
     /**
@@ -129,7 +127,8 @@ namespace manymove_cpp_trees
      * @param scale_z Scale factor along the Z-axis.
      * @return Configured ObjectAction.
      */
-    inline ObjectAction createAddMeshObject(const std::string &object_id, const geometry_msgs::msg::Pose &pose,
+    inline ObjectAction createAddMeshObject(const std::string &object_id,
+                                            const geometry_msgs::msg::Pose &pose,
                                             const std::string &mesh_file,
                                             double scale_x = 1.0, double scale_y = 1.0, double scale_z = 1.0)
     {
@@ -171,16 +170,17 @@ namespace manymove_cpp_trees
     /**
      * @brief Helper function to create an ObjectAction for getting and modifying object pose.
      * @param object_id Unique identifier for the object.
-     * @param first_axis First rotation axis.
-     * @param first_rad First rotation angle in radians.
-     * @param second_axis Second rotation axis.
-     * @param second_rad Second rotation angle in radians.
+     * @param key Blackboard key to store the retrieved pose.
+     * @param xyz_rpy Transformation offsets in format {x, y, z, roll, pitch, yaw}.
+     * @param rpy Reference orientation in format {roll, pitch, yaw}.
      * @return Configured ObjectAction.
      */
-    inline ObjectAction createGetObjectPose(const std::string &object_id, const std::string &first_axis, double first_rad,
-                                           const std::string &second_axis, double second_rad)
+    inline ObjectAction createGetObjectPose(const std::string &object_id,
+                                            const std::string &key,
+                                            const std::vector<double> &xyz_rpy = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                                            const std::vector<double> &rpy = {0.0, 0.0, 0.0})
     {
-        return ObjectAction(object_id, first_axis, first_rad, second_axis, second_rad);
+        return ObjectAction(object_id, key, xyz_rpy, rpy);
     }
 
 } // namespace manymove_cpp_trees
