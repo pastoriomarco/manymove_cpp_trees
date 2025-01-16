@@ -69,10 +69,10 @@ int main(int argc, char **argv)
     // Sequences for Pick/Homing
     std::vector<Move> pick_sequence = {
         {"pose", "approach_target", {}, "", move_configs["mid_move"]},
-        {"pose", "pick_target", {}, "", move_configs["slow_move"]},
+        {"cartesian", "pick_target", {}, "", move_configs["slow_move"]},
     };
     std::vector<Move> home_position = {
-        {"pose", "approach_target", {}, "", move_configs["max_move"]},
+        {"cartesian", "approach_target", {}, "", move_configs["max_move"]},
         {"named", "", {}, named_home, move_configs["max_move"]},
     };
 
@@ -114,11 +114,11 @@ int main(int argc, char **argv)
     auto wall_pose = manymove_cpp_trees::poseBuilderRPY(0.0, 0.4, 0.3, 0.0, 0.0, 0.0);
 
     std::vector<double> cylinderdimension = {0.1, 0.005};
-    auto cylinderpose = manymove_cpp_trees::poseBuilderRPY(0.0, 0.2, 0.005, 0.0, 1.57, 0.0);
+    auto cylinderpose = manymove_cpp_trees::poseBuilderRPY(0.1, 0.2, 0.005, 0.0, 1.57, 0.0);
 
     std::string mesh_file = "package://manymove_object_manager/meshes/unit_tube.stl";
-    std::vector<double> mesh_scale = {0.001, 0.001, 0.001};
-    auto mesh_pose = manymove_cpp_trees::poseBuilderRPY(-0.1, -0.2, 0.01, 0.0, 0.0, 0.0);
+    std::vector<double> mesh_scale = {0.01, 0.01, 0.1};
+    auto mesh_pose = manymove_cpp_trees::poseBuilderRPY(0.1, -0.2, 0.005, 0.0, 1.57, 0.0);
 
     // Create object actions
     manymove_cpp_trees::ObjectAction add_ground = manymove_cpp_trees::createAddPrimitiveObject("obstacle_ground", "box", ground_dimension, ground_pose);
@@ -141,8 +141,8 @@ int main(int argc, char **argv)
     std::string approach_pose_key = "approach_target";
 
     // Define the transformation and reference orientation
-    std::vector<double> pick_transform_xyz_rpy = {0.0, 0.0, 0.1, 3.14, 0.0, 0.0};
-    std::vector<double> approach_transform_xyz_rpy = {0.0, 0.0, 0.15, 3.14, 0.0, 0.0};
+    std::vector<double> pick_transform_xyz_rpy = {0.0, 0.0, 0.002, 3.14, 1.57, 0.0};
+    std::vector<double> approach_transform_xyz_rpy = {0.0, 0.0, 0.02, 3.14, 1.57, 0.0};
     std::vector<double> reference_orientation_rpy = {0.0, 0.0, 0.0};
 
     // Create the GetObjectPoseAction

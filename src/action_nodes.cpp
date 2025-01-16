@@ -130,6 +130,9 @@ namespace manymove_cpp_trees
         geometry_msgs::msg::Pose dynamic_pose;
         manymove_planner::msg::MoveManipulatorGoal move_goal;
 
+        // Assign Move to goal
+        move_goal = move_ptr->to_move_manipulator_goal();
+
         // **Begin: Retrieve dynamic pose using pose_key**
         if (move_ptr->type == "pose" || move_ptr->type == "cartesian")
         {
@@ -143,25 +146,22 @@ namespace manymove_cpp_trees
             }
 
             // Log the retrieved pose
-            RCLCPP_INFO(node_->get_logger(),
-                        "PlanningAction [%s]: Retrieved pose from '%s' - Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
-                        name().c_str(), pose_key_.c_str(),
-                        dynamic_pose.position.x, dynamic_pose.position.y, dynamic_pose.position.z,
-                        dynamic_pose.orientation.x, dynamic_pose.orientation.y, dynamic_pose.orientation.z, dynamic_pose.orientation.w);
+            RCLCPP_ERROR(node_->get_logger(),
+                         "PlanningAction [%s]: Retrieved pose from '%s' - Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                         name().c_str(), pose_key_.c_str(),
+                         dynamic_pose.position.x, dynamic_pose.position.y, dynamic_pose.position.z,
+                         dynamic_pose.orientation.x, dynamic_pose.orientation.y, dynamic_pose.orientation.z, dynamic_pose.orientation.w);
 
             // Assign the dynamic pose to the goal
             move_goal.pose_target = dynamic_pose;
 
-            RCLCPP_INFO(node_->get_logger(),
-                        "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
-                        name().c_str(),
-                        move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
-                        move_goal.pose_target.orientation.x, move_goal.pose_target.orientation.y, move_goal.pose_target.orientation.z, move_goal.pose_target.orientation.w);
+            RCLCPP_ERROR(node_->get_logger(),
+                         "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                         name().c_str(),
+                         move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
+                         move_goal.pose_target.orientation.x, move_goal.pose_target.orientation.y, move_goal.pose_target.orientation.z, move_goal.pose_target.orientation.w);
         }
         // **End: Retrieve dynamic pose using pose_key**
-
-        // Assign Move to goal
-        move_goal = move_ptr->to_move_manipulator_goal();
 
         RCLCPP_INFO(node_->get_logger(),
                     "PlanningAction [%s]: sending plan goal => move_id=%s",
@@ -332,11 +332,13 @@ namespace manymove_cpp_trees
             {
                 // not ready -> keep polling
                 auto elapsed = std::chrono::steady_clock::now() - wait_start_time_;
-                if (elapsed > std::chrono::seconds(10))
+                int max_time = 64;
+                if (elapsed > std::chrono::seconds(max_time))
                 {
                     RCLCPP_ERROR(node_->get_logger(),
-                                 "ExecuteTrajectory [%s]: Timed out (10s) waiting for plan data.",
-                                 name().c_str());
+                                 "ExecuteTrajectory [%s]: Timed out (%is) waiting for plan data.",
+                                 name().c_str(),
+                                 max_time);
                     return BT::NodeStatus::FAILURE;
                 }
                 else
@@ -1335,18 +1337,33 @@ namespace manymove_cpp_trees
                 // Set the output port "pose"
                 setOutput("pose", action_result_.pose);
 
-                RCLCPP_INFO(node_->get_logger(), "GetObjectPoseAction: Successfully retrieved pose. Storing in '%s'.", pose_key_.c_str());
+                // **Important**: Also set the pose in the blackboard under pose_key_
+                if (!pose_key_.empty())
+                {
+                    // Attempt to set the pose on the blackboard
+                    auto blackboard = config().blackboard;
+                    blackboard->set(pose_key_, action_result_.pose);
+                    RCLCPP_INFO(node_->get_logger(),
+                                "GetObjectPoseAction: Successfully set pose to blackboard key '%s'.",
+                                pose_key_.c_str());
+                }
+                else
+                {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "GetObjectPoseAction: pose_key_ is empty. Cannot set pose on blackboard.");
+                    return BT::NodeStatus::FAILURE;
+                }
 
-                // Optional: Log the new pose
-                RCLCPP_INFO(node_->get_logger(), "New pose for '%s': Position (%2f, %2f, %2f), Orientation (%2f, %2f, %2f, %2f)",
-                            pose_key_.c_str(),
-                            action_result_.pose.position.x,
-                            action_result_.pose.position.y,
-                            action_result_.pose.position.z,
-                            action_result_.pose.orientation.x,
-                            action_result_.pose.orientation.y,
-                            action_result_.pose.orientation.z,
-                            action_result_.pose.orientation.w);
+                // Log the new pose
+                RCLCPP_DEBUG(node_->get_logger(), "GetObjectPoseAction: New pose for '%s': Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                             pose_key_.c_str(),
+                             action_result_.pose.position.x,
+                             action_result_.pose.position.y,
+                             action_result_.pose.position.z,
+                             action_result_.pose.orientation.x,
+                             action_result_.pose.orientation.y,
+                             action_result_.pose.orientation.z,
+                             action_result_.pose.orientation.w);
 
                 return BT::NodeStatus::SUCCESS;
             }
