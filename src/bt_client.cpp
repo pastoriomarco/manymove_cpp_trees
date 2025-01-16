@@ -6,6 +6,7 @@
 
 #include "manymove_cpp_trees/action_nodes.hpp"
 #include "manymove_cpp_trees/move.hpp"
+#include "manymove_cpp_trees/object.hpp"
 #include "manymove_cpp_trees/tree_helper.hpp"
 
 #include <string>
@@ -62,34 +63,53 @@ int main(int argc, char **argv)
         {"named", {}, Pose(), named_home, move_configs["max_move"]},
     };
 
-    // 3) Build parallel blocks without local_index
+    // 3) Build parallel move sequence blocks
     std::string par0 = manymove_cpp_trees::buildParallelPlanExecuteXML(
         "toRest", rest_position, blackboard);
 
     std::string par1 = manymove_cpp_trees::buildParallelPlanExecuteXML(
         "scanAround", scan_surroundings, blackboard);
 
-    // Combine them in a single <Sequence> for the entire "preparatory" logic
-    std::vector<std::string> prep_parallels = {par0, par1};
-    std::string prep_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPrepSequence", prep_parallels);
-
-    // 4) Build parallel blocks for "pickAndHoming_seq"
     std::string par2 = manymove_cpp_trees::buildParallelPlanExecuteXML(
         "pick", pick_sequence, blackboard);
 
     std::string par3 = manymove_cpp_trees::buildParallelPlanExecuteXML(
         "home", home_position, blackboard);
 
+    // Combine them in logic sequences for the entire "preparatory" logic
+    // Each subsequence will plan and execute in parallel, but
+    // each subsequent move sequences will start planning all its moves after the last move of the previous sequence executes
+    std::vector<std::string> prep_parallels = {par0, par1};
     std::vector<std::string> pick_parallels = {par2, par3};
+
+    // Translate it to xml tree leaf or branch
+    std::string prep_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPrepSequence", prep_parallels);
     std::string pick_sequence_xml = manymove_cpp_trees::sequenceWrapperXML("ComposedPickSequence", pick_parallels);
+
+    // 4) Build blocks for objects handling
+    auto box_pose = geometry_msgs::msg::Pose();
+    box_pose.position.x = 0.3;
+    box_pose.position.x = 0.3;
+    box_pose.position.x = 0.15;
+    box_pose.orientation.w = 1.0;
+
+    // Create object action
+    manymove_cpp_trees::ObjectAction add_box = manymove_cpp_trees::createAddBoxObject("box1", {0.1, 0.2, 0.3}, box_pose);
+
+    // Translate it to xml tree leaf or branch
+    std::string add_box_xml = buildObjectActionXML("add_box", add_box, blackboard);
 
     // 5) Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
     //    => RepeatForever with two children
-    //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
     std::vector<std::string> composite_move_sequences = {prep_sequence_xml, pick_sequence_xml};
-    std::string repeat_wrapper = manymove_cpp_trees::repeatWrapperXML("RepeatForever", composite_move_sequences);
+    std::string repeat_wrapper_xml = manymove_cpp_trees::repeatWrapperXML("RepeatForever", composite_move_sequences);
 
-    std::vector<std::string> master_branches = {repeat_wrapper};
+    // Then add the objects branch to be executed once before the moves sequences start:
+    std::vector<std::string> object_then_moves = {add_box_xml, repeat_wrapper_xml};
+    std::string object_then_moves_xml = manymove_cpp_trees::sequenceWrapperXML("ObjectMovesSequence", object_then_moves);
+
+    //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
+    std::vector<std::string> master_branches = {object_then_moves_xml};
     std::string master_body = manymove_cpp_trees::sequenceWrapperXML("GlobalMasterSequence", master_branches);
 
     // 6) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">
@@ -102,6 +122,12 @@ int main(int argc, char **argv)
     factory.registerNodeType<manymove_cpp_trees::PlanningAction>("PlanningAction");
     factory.registerNodeType<manymove_cpp_trees::ExecuteTrajectory>("ExecuteTrajectory");
     factory.registerNodeType<manymove_cpp_trees::ResetTrajectories>("ResetTrajectories");
+
+    factory.registerNodeType<manymove_cpp_trees::AddCollisionObjectAction>("AddCollisionObjectAction");
+    factory.registerNodeType<manymove_cpp_trees::RemoveCollisionObjectAction>("RemoveCollisionObjectAction");
+    factory.registerNodeType<manymove_cpp_trees::AttachDetachObjectAction>("AttachDetachObjectAction");
+    factory.registerNodeType<manymove_cpp_trees::CheckObjectExistsAction>("CheckObjectExistsAction");
+    factory.registerNodeType<manymove_cpp_trees::GetObjectPoseAction>("GetObjectPoseAction");
 
     // 8) Create the tree from final_tree_xml
     BT::Tree tree;

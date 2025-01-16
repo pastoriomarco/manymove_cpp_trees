@@ -13,6 +13,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(manymove_planner REQUIRED)
 find_package(moveit_msgs REQUIRED)
+find_package(manymove_object_manager REQUIRED)
 
 # Include directories
 include_directories(include)
@@ -29,6 +30,7 @@ ament_target_dependencies(bt_client
   rclcpp_action
   behaviortree_cpp_v3
   manymove_planner
+  manymove_object_manager
   moveit_msgs
 )
 

@@ -1,13 +1,16 @@
 #ifndef MANYMOVE_CPP_TREES_TREE_HELPER_HPP
 #define MANYMOVE_CPP_TREES_TREE_HELPER_HPP
 
+#include "manymove_cpp_trees/move.hpp"
+#include "manymove_cpp_trees/object.hpp"
+#include "manymove_planner/msg/movement_config.hpp"
+
+#include <behaviortree_cpp_v3/blackboard.h>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <geometry_msgs/msg/pose.hpp>
-#include "manymove_cpp_trees/move.hpp"
-#include "manymove_planner/msg/movement_config.hpp"
-#include <behaviortree_cpp_v3/blackboard.h>
 
 namespace manymove_cpp_trees
 {
@@ -105,8 +108,8 @@ namespace manymove_cpp_trees
      * @return A string containing the generated XML snippet.
      */
     std::string repeatWrapperXML(const std::string &sequence_name,
-                                const std::vector<std::string> &branches,
-                                const int num_cycles = -1);
+                                 const std::vector<std::string> &branches,
+                                 const int num_cycles = -1);
 
     /**
      * @brief Wrap a snippet in a top-level <root> with <BehaviorTree ID="...">
@@ -114,6 +117,108 @@ namespace manymove_cpp_trees
      */
     std::string mainTreeWrapperXML(const std::string &tree_id,
                                    const std::string &content);
+
+    /**
+     * @brief Helper function to convert ObjectActionType enum to corresponding string.
+     * @param type The ObjectActionType enum value.
+     * @return A string representing the action node type.
+     */
+    std::string objectActionTypeToString(ObjectActionType type);
+
+    /**
+     * @brief Helper function to serialize a geometry_msgs::msg::Pose into a string.
+     * @param pose The Pose message to serialize.
+     * @return A string representation of the Pose.
+     */
+    std::string serializePose(const geometry_msgs::msg::Pose &pose);
+
+    /**
+     * @brief Helper function to serialize a std::vector<double> into a comma-separated string.
+     * @param vec The vector to serialize.
+     * @return A string representation of the vector.
+     */
+    std::string serializeVector(const std::vector<double> &vec);
+
+    /**
+     * @brief Builds an XML snippet for a single object action node based on the provided ObjectAction.
+     * @param prefix A prefix to ensure unique node names within the tree.
+     * @param action The ObjectAction struct containing action details.
+     * @param blackboard The shared blackboard for the Behavior Tree.
+     * @return A string containing the XML snippet for the object action node.
+     * @throws std::invalid_argument If an unsupported ObjectActionType is provided.
+     */
+    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action, BT::Blackboard::Ptr blackboard);
+
+    // /**
+    //  * @brief Builds the XML string for an AddCollisionObjectAction node.
+    //  * @param prefix Prefix for the node's name.
+    //  * @param object_id Unique identifier for the object.
+    //  * @param shape Shape type (e.g., "box", "mesh").
+    //  * @param dimensions Dimensions for the shape (width, height, depth). Ignored if shape is "mesh".
+    //  * @param pose Pose of the object.
+    //  * @param mesh_file Path to the mesh file. Required if shape is "mesh".
+    //  * @param scale_x Scale factor along X-axis for mesh objects.
+    //  * @param scale_y Scale factor along Y-axis for mesh objects.
+    //  * @param scale_z Scale factor along Z-axis for mesh objects.
+    //  * @return XML string defining the AddCollisionObjectAction node.
+    //  */
+    // std::string buildAddObjectActionXML(const std::string &prefix,
+    //                                     const std::string &object_id,
+    //                                     const std::string &shape,
+    //                                     const std::vector<double> &dimensions,
+    //                                     const geometry_msgs::msg::Pose &pose,
+    //                                     const std::string &mesh_file = "",
+    //                                     double scale_x = 1.0,
+    //                                     double scale_y = 1.0,
+    //                                     double scale_z = 1.0);
+
+    // /**
+    //  * @brief Builds the XML string for a RemoveCollisionObjectAction node.
+    //  * @param prefix Prefix for the node's name.
+    //  * @param object_id Unique identifier for the object.
+    //  * @return XML string defining the RemoveCollisionObjectAction node.
+    //  */
+    // std::string buildRemoveObjectActionXML(const std::string &prefix,
+    //                                        const std::string &object_id);
+
+    // /**
+    //  * @brief Builds the XML string for an AttachDetachObjectAction node.
+    //  * @param prefix Prefix for the node's name.
+    //  * @param object_id Unique identifier for the object.
+    //  * @param link_name Name of the robot link to attach/detach the object.
+    //  * @param attach True to attach, False to detach.
+    //  * @return XML string defining the AttachDetachObjectAction node.
+    //  */
+    // std::string buildAttachDetachObjectActionXML(const std::string &prefix,
+    //                                              const std::string &object_id,
+    //                                              const std::string &link_name,
+    //                                              bool attach = true);
+
+    // /**
+    //  * @brief Builds the XML string for a CheckObjectExistsAction node.
+    //  * @param prefix Prefix for the node's name.
+    //  * @param object_id Unique identifier for the object.
+    //  * @return XML string defining the CheckObjectExistsAction node.
+    //  */
+    // std::string buildCheckObjectExistsActionXML(const std::string &prefix,
+    //                                             const std::string &object_id);
+
+    // /**
+    //  * @brief Builds the XML string for a GetObjectPoseAction node.
+    //  * @param prefix Prefix for the node's name.
+    //  * @param object_id Unique identifier for the object.
+    //  * @param first_rotation_axis First rotation axis (e.g., "X", "Y", "Z").
+    //  * @param first_rotation_rad First rotation angle in radians.
+    //  * @param second_rotation_axis Second rotation axis (e.g., "X", "Y", "Z").
+    //  * @param second_rotation_rad Second rotation angle in radians.
+    //  * @return XML string defining the GetObjectPoseAction node.
+    //  */
+    // std::string buildGetObjectPoseActionXML(const std::string &prefix,
+    //                                         const std::string &object_id,
+    //                                         const std::string &first_rotation_axis,
+    //                                         double first_rotation_rad,
+    //                                         const std::string &second_rotation_axis,
+    //                                         double second_rotation_rad);
 
 } // namespace manymove_cpp_trees
 
