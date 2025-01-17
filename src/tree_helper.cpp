@@ -247,7 +247,7 @@ namespace manymove_cpp_trees
         return oss.str();
     }
 
-    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action, BT::Blackboard::Ptr blackboard)
+    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action)
     {
         // Generate a unique node name using the prefix and object_id
         std::string node_name = prefix + "_" + action.object_id + "_" + objectActionTypeToString(action.type);

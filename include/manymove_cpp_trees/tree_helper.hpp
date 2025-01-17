@@ -144,11 +144,10 @@ namespace manymove_cpp_trees
      * @brief Builds an XML snippet for a single object action node based on the provided ObjectAction.
      * @param prefix A prefix to ensure unique node names within the tree.
      * @param action The ObjectAction struct containing action details.
-     * @param blackboard The shared blackboard for the Behavior Tree.
      * @return A string containing the XML snippet for the object action node.
      * @throws std::invalid_argument If an unsupported ObjectActionType is provided.
      */
-    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action, BT::Blackboard::Ptr blackboard);
+    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action);
 
     /**
      * @brief Returns a pose with quaterion built from rpy values.

@@ -156,10 +156,10 @@ namespace manymove_cpp_trees
             move_goal.pose_target = dynamic_pose;
 
             RCLCPP_INFO(node_->get_logger(),
-                         "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
-                         name().c_str(),
-                         move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
-                         move_goal.pose_target.orientation.x, move_goal.pose_target.orientation.y, move_goal.pose_target.orientation.z, move_goal.pose_target.orientation.w);
+                        "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
+                        name().c_str(),
+                        move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
+                        move_goal.pose_target.orientation.x, move_goal.pose_target.orientation.y, move_goal.pose_target.orientation.z, move_goal.pose_target.orientation.w);
         }
         // **End: Retrieve dynamic pose using pose_key**
 
