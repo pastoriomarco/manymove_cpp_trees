@@ -1277,15 +1277,15 @@ namespace manymove_cpp_trees
             return BT::NodeStatus::FAILURE;
         }
 
-        if (!getInput<std::vector<double>>("transform_xyz_rpy", transform_xyz_rpy_))
+        if (!getInput<std::vector<double>>("pre_transform_xyz_rpy", pre_transform_xyz_rpy_))
         {
-            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'transform_xyz_rpy'.");
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'pre_transform_xyz_rpy'.");
             return BT::NodeStatus::FAILURE;
         }
 
-        if (!getInput<std::vector<double>>("reference_orientation_rpy", reference_orientation_rpy_))
+        if (!getInput<std::vector<double>>("post_transform_xyz_rpy", post_transform_xyz_rpy_))
         {
-            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'reference_orientation_rpy'.");
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: Missing required input 'post_transform_xyz_rpy'.");
             return BT::NodeStatus::FAILURE;
         }
 
@@ -1296,23 +1296,23 @@ namespace manymove_cpp_trees
         }
 
         // Validate input sizes
-        if (transform_xyz_rpy_.size() != 6)
+        if (pre_transform_xyz_rpy_.size() != 6)
         {
-            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'transform_xyz_rpy' must have exactly 6 elements.");
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'pre_transform_xyz_rpy' must have exactly 6 elements.");
             return BT::NodeStatus::FAILURE;
         }
 
-        if (reference_orientation_rpy_.size() != 3)
+        if (post_transform_xyz_rpy_.size() != 6)
         {
-            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'reference_orientation_rpy' must have exactly 3 elements.");
+            RCLCPP_ERROR(node_->get_logger(), "GetObjectPoseAction: 'post_transform_xyz_rpy' must have exactly 6 elements.");
             return BT::NodeStatus::FAILURE;
         }
 
         // Create and send the goal
         GetObjectPose::Goal goal_msg;
         goal_msg.object_id = object_id_;
-        goal_msg.transform_xyz_rpy = transform_xyz_rpy_;
-        goal_msg.reference_orientation_rpy = reference_orientation_rpy_;
+        goal_msg.pre_transform_xyz_rpy = pre_transform_xyz_rpy_;
+        goal_msg.post_transform_xyz_rpy = post_transform_xyz_rpy_;
 
         RCLCPP_INFO(node_->get_logger(), "GetObjectPoseAction: Sending goal for object '%s'.", object_id_.c_str());
 

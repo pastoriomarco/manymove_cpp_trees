@@ -108,17 +108,19 @@ int main(int argc, char **argv)
      * Each move execution resets the validity of the respective trajectory in the blackboard but, to avoid the risk of
      * stale trajectories in scenarios where a branch could be restarted or repeated, you can set the flag reset_trajs to
      * true to add a leaf node that resets all the trajectories of that move sequence in the blackboard.
+     * Notice that on any string representing an XML snippet it's better to use _xml at the end of the name to give better
+     * sense of what's in that variable.
      */
-    std::string to_rest = buildParallelPlanExecuteXML(
+    std::string to_rest_xml = buildParallelPlanExecuteXML(
         "toRest", rest_position, blackboard, true);
 
-    std::string scan_around = buildParallelPlanExecuteXML(
+    std::string scan_around_xml = buildParallelPlanExecuteXML(
         "scanAround", scan_surroundings, blackboard, true);
 
-    std::string pick_object = buildParallelPlanExecuteXML(
+    std::string pick_object_xml = buildParallelPlanExecuteXML(
         "pick", pick_sequence, blackboard, true);
 
-    std::string to_home = buildParallelPlanExecuteXML(
+    std::string to_home_xml = buildParallelPlanExecuteXML(
         "home", home_position, blackboard, true);
 
     /*
@@ -131,53 +133,59 @@ int main(int argc, char **argv)
      * continuing planning, but I don't need to wait for inputs or do any other action before planning.
      * Once the scan_around sequence is executed I will want to check for some inputs before continuing, so I terminate the
      * move sequence here: this will let me wrap this serie of sequences with other leaf nodes.
-     * Here I create the std::vector<std::string> and name them before creating the xml with the sequenceWrapperXML, to give
-     * a cue of what the sequence is about conceptually, but I could also insert the vector in the sequenceWrapperXML directly
-     * like this:
-     * std::string prep_sequence_xml = sequenceWrapperXML("ComposedPrepSequence", {to_rest, scan_around});
      */
-    std::vector<std::string> prep_parallels = {to_rest, scan_around};
-    std::vector<std::string> pick_parallels = {pick_object, to_home};
 
     // Translate it to xml tree leaf or branch
-    std::string prep_sequence_xml = sequenceWrapperXML("ComposedPrepSequence", prep_parallels);
-    std::string pick_sequence_xml = sequenceWrapperXML("ComposedPickSequence", pick_parallels);
+    std::string prep_sequence_xml = sequenceWrapperXML(
+        "ComposedPrepSequence", {to_rest_xml, scan_around_xml});
+    std::string pick_sequence_xml = sequenceWrapperXML(
+        "ComposedPickSequence", {pick_object_xml, to_home_xml});
 
     // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
     //    => RepeatForever with two children
-    std::vector<std::string> composite_move_sequences = {prep_sequence_xml, pick_sequence_xml};
-    std::string repeat_wrapper_xml = repeatWrapperXML("RepeatForever", composite_move_sequences, 1); // num_cycles=-1 for infinite
+    std::string repeat_moves_wrapper_xml = repeatWrapperXML(
+        "RepeatForever", {prep_sequence_xml, pick_sequence_xml}, 1); // num_cycles=-1 for infinite
 
     // ----------------------------------------------------------------------------
     // 3) Build blocks for objects handling
     // ----------------------------------------------------------------------------
     std::vector<double> ground_dimension = {0.8, 0.8, 0.1};
-    auto ground_pose = poseBuilderRPY(0.0, 0.0, -0.05, 0.0, 0.0, 0.0);
+    auto ground_pose = createPoseRPY(0.0, 0.0, -0.05, 0.0, 0.0, 0.0);
 
     std::vector<double> wall_dimension = {0.8, 0.02, 0.8};
-    auto wall_pose = poseBuilderRPY(0.0, 0.4, 0.3, 0.0, 0.0, 0.0);
+    auto wall_pose = createPoseRPY(0.0, 0.4, 0.3, 0.0, 0.0, 0.0);
 
     std::vector<double> cylinderdimension = {0.1, 0.005};
-    auto cylinderpose = poseBuilderRPY(0.1, 0.2, 0.005, 0.0, 1.57, 0.0);
+    auto cylinderpose = createPoseRPY(0.1, 0.2, 0.005, 0.0, 1.57, 0.0);
 
     std::string mesh_file = "package://manymove_object_manager/meshes/unit_tube.stl";
-    std::vector<double> mesh_scale = {0.01, 0.01, 0.1};
-    auto mesh_pose = poseBuilderRPY(0.1, -0.2, 0.005, 0.0, 1.57, 0.0);
+    // // The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
+    // std::vector<double> mesh_scale = {0.01, 0.01, 0.1};
+    // // We place it on the floor and lay it on its side: with this rotation of +90 degrees on Y axis, the Z+ axis of the mesh aligns with X+ of world frame
+    // // The X+ axis of the object will be facing down parallel to Z- of the world
+    // auto mesh_pose = createPoseRPY(0.1, -0.2, 0.005, 0.0, 1.57, 0.0);
+    std::vector<double> mesh_scale = {0.01, 0.01, 0.1};               //< The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
+    auto mesh_pose = createPoseRPY(0.1, -0.2, 0.2005, 0.785, 1.57, 0.0); //< We place it on the floor and lay it on its side, X+ facing down
 
-    // Create object actions
-    ObjectAction add_ground = createAddPrimitiveObject("obstacle_ground", "box", ground_dimension, ground_pose);
-    ObjectAction add_wall = createAddPrimitiveObject("obstacle_wall", "box", wall_dimension, wall_pose);
-    ObjectAction add_cylinder = createAddPrimitiveObject("graspable_cylinder", "cylinder", cylinderdimension, cylinderpose);
-    ObjectAction add_mesh = createAddMeshObject("graspable_mesh", mesh_pose, mesh_file, mesh_scale[0], mesh_scale[1], mesh_scale[2]);
+    // Create object actions xml snippets (the object are created directly in the create*() functions relative to each type of object action)
+    std::string check_ground_obj_xml = buildObjectActionXML("check_ground", createCheckObjectExists("obstacle_ground"));
+    std::string check_wall_obj_xml = buildObjectActionXML("check_wall", createCheckObjectExists("obstacle_wall"));
+    std::string check_cylinder_obj_xml = buildObjectActionXML("check_cylinder", createCheckObjectExists("graspable_cylinder"));
+    std::string check_mesh_obj_xml = buildObjectActionXML("check_mesh", createCheckObjectExists("graspable_mesh"));
 
-    // Translate objects to xml tree leaf or branch
-    std::string add_ground_xml = buildObjectActionXML("add_ground", add_ground);
-    std::string add_wall_xml = buildObjectActionXML("add_wall", add_wall);
-    std::string add_cylinder_xml = buildObjectActionXML("add_cylinder", add_cylinder);
-    std::string add_mesh_xml = buildObjectActionXML("add_mesh", add_mesh);
+    std::string add_ground_obj_xml = buildObjectActionXML("add_ground", createAddPrimitiveObject("obstacle_ground", "box", ground_dimension, ground_pose));
+    std::string add_wall_obj_xml = buildObjectActionXML("add_wall", createAddPrimitiveObject("obstacle_wall", "box", wall_dimension, wall_pose));
+    std::string add_cylinder_obj_xml = buildObjectActionXML("add_cylinder", createAddPrimitiveObject("graspable_cylinder", "cylinder", cylinderdimension, cylinderpose));
+    std::string add_mesh_obj_xml = buildObjectActionXML("add_mesh", createAddMeshObject("graspable_mesh", mesh_pose, mesh_file, mesh_scale[0], mesh_scale[1], mesh_scale[2]));
+
+    // Compose the check and add sequence for objects
+    std::string check_add_ground_obj_xml = fallbackWrapperXML("check_add_ground", {check_ground_obj_xml, add_ground_obj_xml});
+    std::string check_add_wall_obj_xml = fallbackWrapperXML("check_add_wall", {check_wall_obj_xml, add_wall_obj_xml});
+    std::string check_add_cylinder_obj_xml = fallbackWrapperXML("check_add_cylinder", {check_cylinder_obj_xml, add_cylinder_obj_xml});
+    std::string check_add_mesh_obj_xml = fallbackWrapperXML("check_add_mesh", {check_mesh_obj_xml, add_mesh_obj_xml});
 
     // ----------------------------------------------------------------------------
-    // 4) Add GetObjectPoseAction Node
+    // 4) Add GetObjectPoseAction Node and nodes to attach/detach objects
     // ----------------------------------------------------------------------------
     // Define the object ID and pose_key where the pose will be stored
     std::string object_id_for_pose = "graspable_mesh"; // Example object ID
@@ -185,46 +193,44 @@ int main(int argc, char **argv)
     std::string approach_pose_key = "approach_target";
 
     // Define the transformation and reference orientation
-    std::vector<double> pick_transform_xyz_rpy = {0.0, 0.0, 0.002, 3.14, 1.57, 0.0};
-    std::vector<double> approach_transform_xyz_rpy = {0.0, 0.0, 0.02, 3.14, 1.57, 0.0};
-    std::vector<double> reference_orientation_rpy = {0.0, 0.0, 0.0};
-
-    // Create the GetObjectPoseAction
-    ObjectAction get_pick_pose_action = createGetObjectPose(
-        object_id_for_pose,
-        pick_pose_key,
-        pick_transform_xyz_rpy,
-        reference_orientation_rpy);
-
-    // Create the GetObjectPoseAction
-    ObjectAction get_approach_pose_action = createGetObjectPose(
-        object_id_for_pose,
-        approach_pose_key,
-        approach_transform_xyz_rpy,
-        reference_orientation_rpy);
+    /*
+     * The reference orientation determines how the tranform behaves: if we leave the reference orientation to all zeroes the
+     * transform of the object will be referred to the world frame or, if it's attached, to the frame it is attached to.
+     * Since we may want to grasp an object, we may need to move [TODO]...
+     */
+    std::vector<double> pick_pre_transform_xyz_rpy = {0.15, 0.0, 0.0, 0.0, 1.57, 0.0};
+    std::vector<double> approach_pre_transform_xyz_rpy = {-0.05, 0.0, 0.0, 0.0, 1.57, 0.0};
+    std::vector<double> post_transform_xyz_rpy = {0.0, 0.0, 0.025, 3.14, 0.0, 0.0};
 
     // Translate get_pose_action to xml tree leaf
-    std::string get_pick_pose_xml = buildObjectActionXML("get_pick_pose", get_pick_pose_action);
-    std::string get_approach_pose_xml = buildObjectActionXML("get_approach_pose", get_approach_pose_action);
+    std::string get_pick_pose_xml = buildObjectActionXML(
+        "get_pick_pose", createGetObjectPose(
+                             object_id_for_pose,
+                             pick_pose_key,
+                             pick_pre_transform_xyz_rpy,
+                             post_transform_xyz_rpy));
+    std::string get_approach_pose_xml = buildObjectActionXML(
+        "get_approach_pose", createGetObjectPose(
+                                 object_id_for_pose,
+                                 approach_pose_key,
+                                 approach_pre_transform_xyz_rpy,
+                                 post_transform_xyz_rpy));
 
-    // Add get_pose_xml to the object_then_moves vector
-    // For example, after adding all objects and before the repeat_wrapper_xml
-    std::vector<std::string> objects_then_moves = {add_ground_xml,
-                                                   add_wall_xml,
-                                                   add_cylinder_xml,
-                                                   add_mesh_xml,
-                                                   get_pick_pose_xml,
-                                                   get_approach_pose_xml,
-                                                   repeat_wrapper_xml};
+    // the name of the link to attach the object to
+    std::string link_name = "link_tcp";
 
     // ----------------------------------------------------------------------------
     // 5) Combine the objects and moves in a sequences:
     // ----------------------------------------------------------------------------
-    std::string object_then_moves_xml = sequenceWrapperXML("ObjectMovesSequence", objects_then_moves);
+    std::string object_then_moves_xml = sequenceWrapperXML(
+        "ObjectMovesSequence",
+        {check_add_ground_obj_xml, check_add_wall_obj_xml, check_add_cylinder_obj_xml, check_add_mesh_obj_xml, //< We add all the objects to the scene
+         get_pick_pose_xml, get_approach_pose_xml,                                                             //< We get the updated poses relative to the objects
+         repeat_moves_wrapper_xml});                                                                           //< Then we insert the sequence of moves to repeat
 
     //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
-    std::vector<std::string> master_branches = {object_then_moves_xml};
-    std::string master_body = sequenceWrapperXML("GlobalMasterSequence", master_branches);
+    std::vector<std::string> master_branches_xml = {object_then_moves_xml};
+    std::string master_body = sequenceWrapperXML("GlobalMasterSequence", master_branches_xml);
 
     // ----------------------------------------------------------------------------
     // 6) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">

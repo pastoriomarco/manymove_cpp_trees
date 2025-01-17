@@ -477,8 +477,8 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<std::string>("object_id", "Identifier of the object"),
-                BT::InputPort<std::vector<double>>("transform_xyz_rpy", "Offset and rotation {x, y, z, roll, pitch, yaw}"),
-                BT::InputPort<std::vector<double>>("reference_orientation_rpy", "Reference orientation {roll, pitch, yaw}"),
+                BT::InputPort<std::vector<double>>("pre_transform_xyz_rpy", "Offset and rotation {x, y, z, roll, pitch, yaw}"),
+                BT::InputPort<std::vector<double>>("post_transform_xyz_rpy", "Reference orientation {roll, pitch, yaw}"),
                 BT::InputPort<std::string>("pose_key", "Blackboard key to store the retrieved pose"),
                 BT::OutputPort<geometry_msgs::msg::Pose>("pose", "Pose after transformations")};
         }
@@ -516,8 +516,8 @@ namespace manymove_cpp_trees
 
         GetObjectPose::Result action_result_;
         std::string object_id_;                         ///< Unique object identifier
-        std::vector<double> transform_xyz_rpy_;         ///< Transformation offset and rotation
-        std::vector<double> reference_orientation_rpy_; ///< Reference orientation
+        std::vector<double> pre_transform_xyz_rpy_;         ///< Transformation offset and rotation
+        std::vector<double> post_transform_xyz_rpy_; ///< Reference orientation
         std::string pose_key_;                          ///< Blackboard key to store the pose
     };
 

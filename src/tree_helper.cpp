@@ -8,6 +8,10 @@ static int g_global_move_id = 0;
 namespace manymove_cpp_trees
 {
 
+    // ----------------------------------------------------------------------------
+    // Setup functions
+    // ----------------------------------------------------------------------------
+
     std::unordered_map<std::string, manymove_planner::msg::MovementConfig>
     defineMovementConfigs()
     {
@@ -40,19 +44,9 @@ namespace manymove_cpp_trees
             {"slow_move", slow_move_config}};
     }
 
-    geometry_msgs::msg::Pose createPose(double x, double y, double z,
-                                        double qx, double qy, double qz, double qw)
-    {
-        geometry_msgs::msg::Pose p;
-        p.position.x = x;
-        p.position.y = y;
-        p.position.z = z;
-        p.orientation.x = qx;
-        p.orientation.y = qy;
-        p.orientation.z = qz;
-        p.orientation.w = qw;
-        return p;
-    }
+    // ----------------------------------------------------------------------------
+    // Builder functions to build xml tree snippets programmatically
+    // ----------------------------------------------------------------------------
 
     std::string buildParallelPlanExecuteXML(const std::string &prefix,
                                             const std::vector<Move> &moves,
@@ -144,109 +138,6 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
-    std::string sequenceWrapperXML(const std::string &sequence_name,
-                                   const std::vector<std::string> &branches)
-    {
-        std::ostringstream xml;
-        xml << "  <Sequence name=\"" << sequence_name << "\">\n";
-        for (auto &b : branches)
-        {
-            xml << b << "\n";
-        }
-        xml << "  </Sequence>\n";
-        return xml.str();
-    }
-
-    std::string reactiveWrapperXML(const std::string &sequence_name,
-                                   const std::vector<std::string> &branches)
-    {
-        std::ostringstream xml;
-        xml << "  <ReactiveSequence name=\"" << sequence_name << "\">\n";
-        for (auto &b : branches)
-        {
-            xml << b << "\n";
-        }
-        xml << "  </ReactiveSequence>\n";
-        return xml.str();
-    }
-
-    std::string repeatWrapperXML(const std::string &sequence_name,
-                                 const std::vector<std::string> &branches,
-                                 const int num_cycles)
-    {
-        std::ostringstream xml;
-        xml << "  <Repeat name=\"" << sequence_name << "\" num_cycles=\"" << num_cycles << "\">\n";
-        xml << "    <Sequence name=\"" << sequence_name << "_sequence\">\n";
-        for (const auto &b : branches)
-        {
-            xml << b << "\n";
-        }
-        xml << "    </Sequence>\n";
-        xml << "  </Repeat>\n";
-        return xml.str();
-    }
-
-    std::string mainTreeWrapperXML(const std::string &tree_id,
-                                   const std::string &content)
-    {
-        std::ostringstream xml;
-        xml << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n";
-        xml << "<root main_tree_to_execute=\"" << tree_id << "\">\n";
-        xml << "  <BehaviorTree ID=\"" << tree_id << "\">\n";
-        xml << content << "\n";
-        xml << "  </BehaviorTree>\n";
-        xml << "</root>\n";
-        return xml.str();
-    }
-
-    std::string objectActionTypeToString(ObjectActionType type)
-    {
-        switch (type)
-        {
-        case ObjectActionType::ADD:
-            return "AddCollisionObjectAction";
-        case ObjectActionType::REMOVE:
-            return "RemoveCollisionObjectAction";
-        case ObjectActionType::ATTACH:
-        case ObjectActionType::DETACH:
-            return "AttachDetachObjectAction";
-        case ObjectActionType::CHECK:
-            return "CheckObjectExistsAction";
-        case ObjectActionType::GET_POSE:
-            return "GetObjectPoseAction";
-        default:
-            throw std::invalid_argument("Unsupported ObjectActionType");
-        }
-    }
-
-    std::string serializePose(const geometry_msgs::msg::Pose &pose)
-    {
-        std::ostringstream oss;
-        oss << "position: {x: " << pose.position.x
-            << ", y: " << pose.position.y
-            << ", z: " << pose.position.z
-            << "}, orientation: {x: " << pose.orientation.x
-            << ", y: " << pose.orientation.y
-            << ", z: " << pose.orientation.z
-            << ", w: " << pose.orientation.w
-            << "}";
-        return oss.str();
-    }
-
-    std::string serializeVector(const std::vector<double> &vec)
-    {
-        std::ostringstream oss;
-        oss << "[";
-        for (size_t i = 0; i < vec.size(); ++i)
-        {
-            oss << vec[i];
-            if (i != vec.size() - 1)
-                oss << ",";
-        }
-        oss << "]";
-        return oss.str();
-    }
-
     std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action)
     {
         // Generate a unique node name using the prefix and object_id
@@ -306,11 +197,11 @@ namespace manymove_cpp_trees
         }
         case ObjectActionType::GET_POSE:
         {
-            // Serialize transform_xyz_rpy and reference_orientation_rpy
-            std::string transform_str = serializeVector(action.transform_xyz_rpy);
-            std::string reference_orient_str = serializeVector(action.reference_orientation_rpy);
-            xml << "transform_xyz_rpy=\"" << transform_str << "\" ";
-            xml << "reference_orientation_rpy=\"" << reference_orient_str << "\" ";
+            // Serialize pre_transform_xyz_rpy and post_transform_xyz_rpy
+            std::string transform_str = serializeVector(action.pre_transform_xyz_rpy);
+            std::string reference_orient_str = serializeVector(action.post_transform_xyz_rpy);
+            xml << "pre_transform_xyz_rpy=\"" << transform_str << "\" ";
+            xml << "post_transform_xyz_rpy=\"" << reference_orient_str << "\" ";
 
             // Serialize pose_key if it's not empty
             if (!action.pose_key.empty())
@@ -329,12 +220,98 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
-    geometry_msgs::msg::Pose poseBuilderRPY(const double &x,
-                                            const double &y,
-                                            const double &z,
-                                            const double &roll,
-                                            const double &pitch,
-                                            const double &yaw)
+    std::string sequenceWrapperXML(const std::string &sequence_name,
+                                   const std::vector<std::string> &branches)
+    {
+        std::ostringstream xml;
+        xml << "  <Sequence name=\"" << sequence_name << "\">\n";
+        for (auto &b : branches)
+        {
+            xml << b << "\n";
+        }
+        xml << "  </Sequence>\n";
+        return xml.str();
+    }
+
+    std::string reactiveWrapperXML(const std::string &sequence_name,
+                                   const std::vector<std::string> &branches)
+    {
+        std::ostringstream xml;
+        xml << "  <ReactiveSequence name=\"" << sequence_name << "\">\n";
+        for (auto &b : branches)
+        {
+            xml << b << "\n";
+        }
+        xml << "  </ReactiveSequence>\n";
+        return xml.str();
+    }
+
+    std::string repeatWrapperXML(const std::string &sequence_name,
+                                 const std::vector<std::string> &branches,
+                                 const int num_cycles)
+    {
+        std::ostringstream xml;
+        xml << "  <Repeat name=\"" << sequence_name << "\" num_cycles=\"" << num_cycles << "\">\n";
+        xml << "    <Sequence name=\"" << sequence_name << "_sequence\">\n";
+        for (const auto &b : branches)
+        {
+            xml << b << "\n";
+        }
+        xml << "    </Sequence>\n";
+        xml << "  </Repeat>\n";
+        return xml.str();
+    }
+
+    std::string fallbackWrapperXML(const std::string &sequence_name,
+                                   const std::vector<std::string> &branches)
+    {
+        std::ostringstream xml;
+        xml << "  <Fallback name=\"" << sequence_name << "\">\n";
+        for (auto &b : branches)
+        {
+            xml << b << "\n";
+        }
+        xml << "  </Fallback>\n";
+        return xml.str();
+    }
+
+    std::string mainTreeWrapperXML(const std::string &tree_id,
+                                   const std::string &content)
+    {
+        std::ostringstream xml;
+        xml << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n";
+        xml << "<root main_tree_to_execute=\"" << tree_id << "\">\n";
+        xml << "  <BehaviorTree ID=\"" << tree_id << "\">\n";
+        xml << content << "\n";
+        xml << "  </BehaviorTree>\n";
+        xml << "</root>\n";
+        return xml.str();
+    }
+
+    // ----------------------------------------------------------------------------
+    // Helper functions
+    // ----------------------------------------------------------------------------
+
+    geometry_msgs::msg::Pose createPose(double x, double y, double z,
+                                        double qx, double qy, double qz, double qw)
+    {
+        geometry_msgs::msg::Pose p;
+        p.position.x = x;
+        p.position.y = y;
+        p.position.z = z;
+        p.orientation.x = qx;
+        p.orientation.y = qy;
+        p.orientation.z = qz;
+        p.orientation.w = qw;
+        return p;
+    }
+
+    geometry_msgs::msg::Pose createPoseRPY(const double &x,
+                                           const double &y,
+                                           const double &z,
+                                           const double &roll,
+                                           const double &pitch,
+                                           const double &yaw)
     {
         auto pose = geometry_msgs::msg::Pose();
 
@@ -354,6 +331,54 @@ namespace manymove_cpp_trees
         pose.orientation.w = quaternion.w();
 
         return pose;
+    }
+
+    std::string objectActionTypeToString(ObjectActionType type)
+    {
+        switch (type)
+        {
+        case ObjectActionType::ADD:
+            return "AddCollisionObjectAction";
+        case ObjectActionType::REMOVE:
+            return "RemoveCollisionObjectAction";
+        case ObjectActionType::ATTACH:
+        case ObjectActionType::DETACH:
+            return "AttachDetachObjectAction";
+        case ObjectActionType::CHECK:
+            return "CheckObjectExistsAction";
+        case ObjectActionType::GET_POSE:
+            return "GetObjectPoseAction";
+        default:
+            throw std::invalid_argument("Unsupported ObjectActionType");
+        }
+    }
+
+    std::string serializePose(const geometry_msgs::msg::Pose &pose)
+    {
+        std::ostringstream oss;
+        oss << "position: {x: " << pose.position.x
+            << ", y: " << pose.position.y
+            << ", z: " << pose.position.z
+            << "}, orientation: {x: " << pose.orientation.x
+            << ", y: " << pose.orientation.y
+            << ", z: " << pose.orientation.z
+            << ", w: " << pose.orientation.w
+            << "}";
+        return oss.str();
+    }
+
+    std::string serializeVector(const std::vector<double> &vec)
+    {
+        std::ostringstream oss;
+        oss << "[";
+        for (size_t i = 0; i < vec.size(); ++i)
+        {
+            oss << vec[i];
+            if (i != vec.size() - 1)
+                oss << ",";
+        }
+        oss << "]";
+        return oss.str();
     }
 
 } // namespace manymove_cpp_trees

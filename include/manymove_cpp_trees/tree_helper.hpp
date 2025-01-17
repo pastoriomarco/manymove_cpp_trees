@@ -16,17 +16,19 @@
 namespace manymove_cpp_trees
 {
 
+    // ----------------------------------------------------------------------------
+    // Setup functions
+    // ----------------------------------------------------------------------------
+
     /**
      * @brief Return some standard MovementConfig presets (max_move, mid_move, slow_move).
      */
     std::unordered_map<std::string, manymove_planner::msg::MovementConfig>
     defineMovementConfigs();
 
-    /**
-     * @brief Create a geometry_msgs::msg::Pose easily.
-     */
-    geometry_msgs::msg::Pose createPose(double x, double y, double z,
-                                        double qx, double qy, double qz, double qw);
+    // ----------------------------------------------------------------------------
+    // Builder functions to build xml tree snippets programmatically
+    // ----------------------------------------------------------------------------
 
     /**
      * @brief Build a single parallel "plan + execute" block with unique naming
@@ -79,6 +81,15 @@ namespace manymove_cpp_trees
                                             bool reset_trajs = true);
 
     /**
+     * @brief Builds an XML snippet for a single object action node based on the provided ObjectAction.
+     * @param prefix A prefix to ensure unique node names within the tree.
+     * @param action The ObjectAction struct containing action details.
+     * @return A string containing the XML snippet for the object action node.
+     * @throws std::invalid_argument If an unsupported ObjectActionType is provided.
+     */
+    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action);
+
+    /**
      * @brief Wrap multiple snippets in a <Sequence> with a given name.
      */
     std::string sequenceWrapperXML(const std::string &sequence_name,
@@ -113,11 +124,51 @@ namespace manymove_cpp_trees
                                  const int num_cycles = -1);
 
     /**
+     * @brief Wrap multiple snippets in a <Fallback> with a given name.
+     *
+     * This wrapper is useful for creating tree branches that try each branch in
+     * sequence one is successful.
+     *
+     * @param sequence_name A unique name for the Fallback.
+     * @param branches A vector of XML snippets representing the child nodes.
+     * @return A string containing the generated XML snippet.
+     */
+    std::string fallbackWrapperXML(const std::string &sequence_name,
+                                   const std::vector<std::string> &branches);
+
+    /**
      * @brief Wrap a snippet in a top-level <root> with <BehaviorTree ID="...">
      *        so it can be loaded by BehaviorTreeFactory.
      */
     std::string mainTreeWrapperXML(const std::string &tree_id,
                                    const std::string &content);
+
+    // ----------------------------------------------------------------------------
+    // Helper functions
+    // ----------------------------------------------------------------------------
+
+    /**
+     * @brief Create a geometry_msgs::msg::Pose easily.
+     */
+    geometry_msgs::msg::Pose createPose(double x, double y, double z,
+                                        double qx, double qy, double qz, double qw);
+
+    /**
+     * @brief Returns a pose with quaterion built from rpy values.
+     * @param x offset about X axis.
+     * @param y offset about Y axis.
+     * @param x offset about Z axis.
+     * @param roll rotation about X axis.
+     * @param pitch rotation about Y axis.
+     * @param yaw rotation about Z axis.
+     * @return geometry_msgs::msg::Pose corresponding to the values inserted
+     */
+    geometry_msgs::msg::Pose createPoseRPY(const double &x = 0.0,
+                                           const double &y = 0.0,
+                                           const double &z = 0.0,
+                                           const double &roll = 0.0,
+                                           const double &pitch = 0.0,
+                                           const double &yaw = 0.0);
 
     /**
      * @brief Helper function to convert ObjectActionType enum to corresponding string.
@@ -139,32 +190,6 @@ namespace manymove_cpp_trees
      * @return A string representation of the vector.
      */
     std::string serializeVector(const std::vector<double> &vec);
-
-    /**
-     * @brief Builds an XML snippet for a single object action node based on the provided ObjectAction.
-     * @param prefix A prefix to ensure unique node names within the tree.
-     * @param action The ObjectAction struct containing action details.
-     * @return A string containing the XML snippet for the object action node.
-     * @throws std::invalid_argument If an unsupported ObjectActionType is provided.
-     */
-    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action);
-
-    /**
-     * @brief Returns a pose with quaterion built from rpy values.
-     * @param x offset about X axis.
-     * @param y offset about Y axis.
-     * @param x offset about Z axis.
-     * @param roll rotation about X axis.
-     * @param pitch rotation about Y axis.
-     * @param yaw rotation about Z axis.
-     * @return geometry_msgs::msg::Pose corresponding to the values inserted
-     */
-    geometry_msgs::msg::Pose poseBuilderRPY(const double &x = 0.0,
-                                            const double &y = 0.0,
-                                            const double &z = 0.0,
-                                            const double &roll = 0.0,
-                                            const double &pitch = 0.0,
-                                            const double &yaw = 0.0);
 
 } // namespace manymove_cpp_trees
 
