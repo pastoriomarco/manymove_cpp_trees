@@ -146,7 +146,7 @@ namespace manymove_cpp_trees
             }
 
             // Log the retrieved pose
-            RCLCPP_ERROR(node_->get_logger(),
+            RCLCPP_DEBUG(node_->get_logger(),
                          "PlanningAction [%s]: Retrieved pose from '%s' - Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
                          name().c_str(), pose_key_.c_str(),
                          dynamic_pose.position.x, dynamic_pose.position.y, dynamic_pose.position.z,
@@ -155,7 +155,7 @@ namespace manymove_cpp_trees
             // Assign the dynamic pose to the goal
             move_goal.pose_target = dynamic_pose;
 
-            RCLCPP_ERROR(node_->get_logger(),
+            RCLCPP_INFO(node_->get_logger(),
                          "PlanningAction [%s]: Final move_goal.pose_target set to Position (%.3f, %.3f, %.3f), Orientation (%.3f, %.3f, %.3f, %.3f)",
                          name().c_str(),
                          move_goal.pose_target.position.x, move_goal.pose_target.position.y, move_goal.pose_target.position.z,
