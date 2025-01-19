@@ -168,6 +168,19 @@ namespace manymove_cpp_trees
     }
 
     /**
+     * @brief Helper function to create an ObjectAction for removing an object.
+     * @param object_id Unique identifier for the object.
+     * @return Configured ObjectAction.
+     */
+    inline ObjectAction createRemoveObject(const std::string &object_id)
+    {
+        ObjectAction action;
+        action.type = ObjectActionType::REMOVE;
+        action.object_id = object_id;
+        return action;
+    }
+
+    /**
      * @brief Helper function to create an ObjectAction for getting and modifying object pose.
      * @param object_id Unique identifier for the object.
      * @param key Blackboard key to store the retrieved pose.

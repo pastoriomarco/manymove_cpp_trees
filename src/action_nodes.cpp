@@ -289,6 +289,7 @@ namespace manymove_cpp_trees
         }
 
         action_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "execute_manipulator_traj");
+        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "stop_motion");
         RCLCPP_INFO(node_->get_logger(),
                     "ExecuteTrajectory [%s]: waiting 5s for 'execute_manipulator_traj' server...",
                     name.c_str());
@@ -390,6 +391,7 @@ namespace manymove_cpp_trees
                     "ExecuteTrajectory [%s]: onHalted => cancel goal if needed.",
                     name().c_str());
 
+        // Cancel any in-progress "execute_manipulator_traj" goal
         if (goal_sent_ && !result_received_)
         {
             action_client_->async_cancel_all_goals();
@@ -397,6 +399,7 @@ namespace manymove_cpp_trees
         goal_sent_ = false;
         result_received_ = false;
         is_data_ready_ = false;
+
         // Invalidate trajectory on halt
         setOutput("trajectory", moveit_msgs::msg::RobotTrajectory());
         setOutput("planning_validity", false);
@@ -408,6 +411,46 @@ namespace manymove_cpp_trees
         std::string trajectory_key = "trajectory_" + move_id_;
         moveit_msgs::msg::RobotTrajectory empty_traj;
         config().blackboard->set(trajectory_key, empty_traj);
+
+        // *** Call STOP_MOTION server ***
+        if (!stop_client_)
+        {
+            RCLCPP_WARN(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: stop_motion_client_ is not initialized. Cannot stop motion.",
+                        name().c_str());
+            return;
+        }
+
+        // Create an empty goal (we won't send a real trajectory)
+        manymove_planner::action::ExecuteTrajectory::Goal stop_goal;
+        // e.g. stop_goal.trajectory is empty
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: Sending STOP goal to 'stop_motion' server...",
+                    name().c_str());
+
+        auto send_goal_options = rclcpp_action::Client<manymove_planner::action::ExecuteTrajectory>::SendGoalOptions();
+
+        // Optional: add result callback to see if STOP completed
+        send_goal_options.result_callback =
+            [this](const typename rclcpp_action::ClientGoalHandle<
+                   manymove_planner::action::ExecuteTrajectory>::WrappedResult &wrapped_result)
+        {
+            if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
+            {
+                RCLCPP_INFO(node_->get_logger(), "StopMotion => SUCCEEDED: %s",
+                            wrapped_result.result->message.c_str());
+            }
+            else
+            {
+                RCLCPP_WARN(node_->get_logger(), "StopMotion => code=%d => message: %s",
+                            static_cast<int>(wrapped_result.code),
+                            wrapped_result.result ? wrapped_result.result->message.c_str() : "");
+            }
+        };
+
+        // Send goal asynchronously
+        stop_client_->async_send_goal(stop_goal, send_goal_options);
     }
 
     bool ExecuteTrajectory::dataReady()

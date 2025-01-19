@@ -136,6 +136,7 @@ namespace manymove_cpp_trees
 
         rclcpp::Node::SharedPtr node_;
         rclcpp_action::Client<ExecuteTrajectoryAction>::SharedPtr action_client_;
+        rclcpp_action::Client<ExecuteTrajectoryAction>::SharedPtr stop_client_;
 
         bool goal_sent_;
         bool result_received_;

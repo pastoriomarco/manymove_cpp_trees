@@ -57,17 +57,27 @@ int main(int argc, char **argv)
     std::vector<double> joint_look_dx = {0.733, -0.297, 1.378, -0.576, 1.692, 1.291};
     std::string named_home = "home";
 
-    // Original test poses: they should be overwritten by the blackboard key that will be dynamically updated getting the grasp pose object
+    // Original pick test poses: they should be overwritten by the blackboard key that will be dynamically updated getting the grasp pose object
     Pose pick_target = createPose(0.2, -0.1, 0.15, 1.0, 0.0, 0.0, 0.0);
-    Pose approach_target = pick_target;
-    approach_target.position.z += 0.02;
+    Pose approach_pick_target = pick_target;
+    approach_pick_target.position.z += 0.02;
+
+    // Test poses to place the object, these are not overwritten later (for now)
+    Pose drop_target = createPose(0.2, 0.1, 0.15, 1.0, 0.0, 0.0, 0.0);
+    Pose approach_drop_target = drop_target;
+    approach_drop_target.position.z += 0.02;
 
     // Populate the blackboard with the poses, one unique key for each pose we want to use.
     // Be careful not to use names that may conflict with the keys automatically created for the moves. (Usually move_{move_id})
     blackboard->set("pick_target", pick_target);
-    blackboard->set("approach_target", approach_target);
+    blackboard->set("approach_pick_target", approach_pick_target);
     RCLCPP_INFO(node->get_logger(), "Blackboard: set('pick_target', pick_target Pose)");
-    RCLCPP_INFO(node->get_logger(), "Blackboard: set('approach_target', approach_target Pose)");
+    RCLCPP_INFO(node->get_logger(), "Blackboard: set('approach_pick_target', approach_pick_target Pose)");
+
+    blackboard->set("drop_target", drop_target);
+    blackboard->set("approach_drop_target", approach_drop_target);
+    RCLCPP_INFO(node->get_logger(), "Blackboard: set('drop_target', drop_target Pose)");
+    RCLCPP_INFO(node->get_logger(), "Blackboard: set('approach_drop_target', approach_drop_target Pose)");
 
     /*
      * Here we compose the sequences of moves. Each of the following sequences represent a logic
@@ -87,13 +97,20 @@ int main(int argc, char **argv)
         {"joint", "", joint_look_dx, "", move_configs["max_move"]},
     };
 
-    // Sequences for Pick/Homing
+    // Sequences for Pick/Drop/Homing
     std::vector<Move> pick_sequence = {
-        {"pose", "approach_target", {}, "", move_configs["mid_move"]},
+        {"pose", "approach_pick_target", {}, "", move_configs["mid_move"]},
         {"cartesian", "pick_target", {}, "", move_configs["slow_move"]},
     };
+
+    std::vector<Move> drop_sequence = {
+        {"pose", "approach_pick_target", {}, "", move_configs["mid_move"]},
+        {"pose", "approach_drop_target", {}, "", move_configs["max_move"]},
+        {"cartesian", "drop_target", {}, "", move_configs["slow_move"]},
+    };
+
     std::vector<Move> home_position = {
-        {"cartesian", "approach_target", {}, "", move_configs["max_move"]},
+        {"cartesian", "approach_drop_target", {}, "", move_configs["max_move"]},
         {"named", "", {}, named_home, move_configs["max_move"]},
     };
 
@@ -120,11 +137,14 @@ int main(int argc, char **argv)
     std::string pick_object_xml = buildParallelPlanExecuteXML(
         "pick", pick_sequence, blackboard, true);
 
+    std::string drop_object_xml = buildParallelPlanExecuteXML(
+        "drop", drop_sequence, blackboard, true);
+
     std::string to_home_xml = buildParallelPlanExecuteXML(
         "home", home_position, blackboard, true);
 
     /*
-     * Combine the parallel move sequence blocks in logic sequences for the entire "preparatory" and "pick" logic.
+     * Combine the parallel move sequence blocks in logic sequences for the entire logic.
      * Each subsequence will plan and execute in parallel, but the next subsequence will start planning all its moves
      * only after the last move of the previous sequence executes.
      * This can be useful for example if you have a camera mounted on the robot's arm and you want the next moves to be
@@ -133,18 +153,19 @@ int main(int argc, char **argv)
      * continuing planning, but I don't need to wait for inputs or do any other action before planning.
      * Once the scan_around sequence is executed I will want to check for some inputs before continuing, so I terminate the
      * move sequence here: this will let me wrap this serie of sequences with other leaf nodes.
+     * Other sequences like the ones to pick and to drop the objects will need to wait for inputs and/or give outputs, so
+     * we sepearate them from the beginning.
      */
 
     // Translate it to xml tree leaf or branch
     std::string prep_sequence_xml = sequenceWrapperXML(
         "ComposedPrepSequence", {to_rest_xml, scan_around_xml});
     std::string pick_sequence_xml = sequenceWrapperXML(
-        "ComposedPickSequence", {pick_object_xml, to_home_xml});
-
-    // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
-    //    => RepeatForever with two children
-    std::string repeat_moves_wrapper_xml = repeatWrapperXML(
-        "RepeatForever", {prep_sequence_xml, pick_sequence_xml}, 1); // num_cycles=-1 for infinite
+        "ComposedPickSequence", {pick_object_xml});
+    std::string drop_sequence_xml = sequenceWrapperXML(
+        "ComposedDropSequence", {drop_object_xml});
+    std::string home_sequence_xml = sequenceWrapperXML(
+        "ComposedHomeSequence", {to_home_xml});
 
     // ----------------------------------------------------------------------------
     // 3) Build blocks for objects handling
@@ -164,7 +185,7 @@ int main(int argc, char **argv)
     // // We place it on the floor and lay it on its side: with this rotation of +90 degrees on Y axis, the Z+ axis of the mesh aligns with X+ of world frame
     // // The X+ axis of the object will be facing down parallel to Z- of the world
     // auto mesh_pose = createPoseRPY(0.1, -0.2, 0.005, 0.0, 1.57, 0.0);
-    std::vector<double> mesh_scale = {0.01, 0.01, 0.1};               //< The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
+    std::vector<double> mesh_scale = {0.01, 0.01, 0.1};                  //< The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
     auto mesh_pose = createPoseRPY(0.1, -0.2, 0.2005, 0.785, 1.57, 0.0); //< We place it on the floor and lay it on its side, X+ facing down
 
     // Create object actions xml snippets (the object are created directly in the create*() functions relative to each type of object action)
@@ -179,10 +200,17 @@ int main(int argc, char **argv)
     std::string add_mesh_obj_xml = buildObjectActionXML("add_mesh", createAddMeshObject("graspable_mesh", mesh_pose, mesh_file, mesh_scale[0], mesh_scale[1], mesh_scale[2]));
 
     // Compose the check and add sequence for objects
-    std::string check_add_ground_obj_xml = fallbackWrapperXML("check_add_ground", {check_ground_obj_xml, add_ground_obj_xml});
-    std::string check_add_wall_obj_xml = fallbackWrapperXML("check_add_wall", {check_wall_obj_xml, add_wall_obj_xml});
-    std::string check_add_cylinder_obj_xml = fallbackWrapperXML("check_add_cylinder", {check_cylinder_obj_xml, add_cylinder_obj_xml});
-    std::string check_add_mesh_obj_xml = fallbackWrapperXML("check_add_mesh", {check_mesh_obj_xml, add_mesh_obj_xml});
+    std::string init_ground_obj_xml = fallbackWrapperXML("init_ground_obj", {check_ground_obj_xml, add_ground_obj_xml});
+    std::string init_wall_obj_xml = fallbackWrapperXML("init_wall_obj", {check_wall_obj_xml, add_wall_obj_xml});
+    std::string init_cylinder_obj_xml = fallbackWrapperXML("init_cylinder_obj", {check_cylinder_obj_xml, add_cylinder_obj_xml});
+    std::string init_mesh_obj_xml = fallbackWrapperXML("init_mesh_obj", {check_mesh_obj_xml, add_mesh_obj_xml});
+
+    // the name of the link to attach the object to
+    std::string link_name = "link_tcp";
+
+    std::string attach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createAttachObject("graspable_mesh", link_name));
+    std::string detach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createDetachObject("graspable_mesh", link_name));
+    std::string remove_mesh_obj_xml = buildObjectActionXML("remove_mesh", createRemoveObject("graspable_mesh"));
 
     // ----------------------------------------------------------------------------
     // 4) Add GetObjectPoseAction Node and nodes to attach/detach objects
@@ -190,7 +218,7 @@ int main(int argc, char **argv)
     // Define the object ID and pose_key where the pose will be stored
     std::string object_id_for_pose = "graspable_mesh"; // Example object ID
     std::string pick_pose_key = "pick_target";
-    std::string approach_pose_key = "approach_target";
+    std::string approach_pose_key = "approach_pick_target";
 
     // Define the transformation and reference orientation
     /*
@@ -198,7 +226,7 @@ int main(int argc, char **argv)
      * transform of the object will be referred to the world frame or, if it's attached, to the frame it is attached to.
      * Since we may want to grasp an object, we may need to move [TODO]...
      */
-    std::vector<double> pick_pre_transform_xyz_rpy = {0.15, 0.0, 0.0, 0.0, 1.57, 0.0};
+    std::vector<double> pick_pre_transform_xyz_rpy = {-0.002, 0.0, 0.0, 0.0, 1.57, 0.0};
     std::vector<double> approach_pre_transform_xyz_rpy = {-0.05, 0.0, 0.0, 0.0, 1.57, 0.0};
     std::vector<double> post_transform_xyz_rpy = {0.0, 0.0, 0.025, 3.14, 0.0, 0.0};
 
@@ -216,20 +244,29 @@ int main(int argc, char **argv)
                                  approach_pre_transform_xyz_rpy,
                                  post_transform_xyz_rpy));
 
-    // the name of the link to attach the object to
-    std::string link_name = "link_tcp";
+    // ----------------------------------------------------------------------------
+    // 5) Combine the objects and moves in a sequences that can run a number of times:
+    // ----------------------------------------------------------------------------
+    //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
+    std::string repeat_forever_wrapper_xml = repeatWrapperXML(
+        "RepeatForever",
+        {init_ground_obj_xml, init_wall_obj_xml, init_cylinder_obj_xml, init_mesh_obj_xml, //< We add all the objects to the scene
+         get_pick_pose_xml, get_approach_pose_xml,                                         //< We get the updated poses relative to the objects
+         prep_sequence_xml, pick_sequence_xml,                                             //< Prep sequence and pick sequence
+         attach_mesh_obj_xml,                                                              //< We attach the object
+         drop_sequence_xml,                                                                //< Drop sequence
+         detach_mesh_obj_xml,                                                              //< We detach the object
+         home_sequence_xml,                                                                //< Homing sequence
+         remove_mesh_obj_xml},                                                             //< We delete the object for it to be added on the next cycle in the original position
+        -1);                                                                               //< num_cycles=-1 for infinite
 
-    // ----------------------------------------------------------------------------
-    // 5) Combine the objects and moves in a sequences:
-    // ----------------------------------------------------------------------------
-    std::string object_then_moves_xml = sequenceWrapperXML(
-        "ObjectMovesSequence",
-        {check_add_ground_obj_xml, check_add_wall_obj_xml, check_add_cylinder_obj_xml, check_add_mesh_obj_xml, //< We add all the objects to the scene
-         get_pick_pose_xml, get_approach_pose_xml,                                                             //< We get the updated poses relative to the objects
-         repeat_moves_wrapper_xml});                                                                           //< Then we insert the sequence of moves to repeat
+    // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
+    //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other childs
+    // std::string repeat_forever_wrapper_xml = repeatWrapperXML(
+    //     "RepeatForever", {object_then_moves_xml}, -1); // num_cycles=-1 for infinite
 
     //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
-    std::vector<std::string> master_branches_xml = {object_then_moves_xml};
+    std::vector<std::string> master_branches_xml = {repeat_forever_wrapper_xml};
     std::string master_body = sequenceWrapperXML("GlobalMasterSequence", master_branches_xml);
 
     // ----------------------------------------------------------------------------
