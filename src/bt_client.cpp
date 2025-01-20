@@ -10,6 +10,11 @@
 #include "manymove_cpp_trees/tree_helper.hpp"
 #include "manymove_cpp_trees/bt_converters.hpp"
 
+#include "manymove_signals/action/set_output.hpp"
+#include "manymove_signals/action/get_input.hpp"
+#include "manymove_signals/action/check_robot_state.hpp"
+#include "manymove_signals/action/reset_robot_state.hpp"
+
 #include <string>
 #include <vector>
 
@@ -287,6 +292,11 @@ int main(int argc, char **argv)
     factory.registerNodeType<AttachDetachObjectAction>("AttachDetachObjectAction");
     factory.registerNodeType<CheckObjectExistsAction>("CheckObjectExistsAction");
     factory.registerNodeType<GetObjectPoseAction>("GetObjectPoseAction");
+
+    factory.registerNodeType<SetOutputAction>("SetOutputAction");
+    factory.registerNodeType<GetInputAction>("GetInputAction");
+    factory.registerNodeType<CheckRobotStateAction>("CheckRobotStateAction");
+    factory.registerNodeType<ResetRobotStateAction>("ResetRobotStateAction");
 
     // 8) Create the tree from final_tree_xml
     BT::Tree tree;

@@ -14,6 +14,7 @@ find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(manymove_planner REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(manymove_object_manager REQUIRED)
+find_package(manymove_signals REQUIRED)
 find_package(tf2 REQUIRED)
 
 # Include directories
@@ -32,6 +33,7 @@ ament_target_dependencies(bt_client
   behaviortree_cpp_v3
   manymove_planner
   manymove_object_manager
+  manymove_signals
   moveit_msgs
   tf2
 )
