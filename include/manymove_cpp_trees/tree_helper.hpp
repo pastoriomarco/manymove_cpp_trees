@@ -143,6 +143,63 @@ namespace manymove_cpp_trees
     std::string mainTreeWrapperXML(const std::string &tree_id,
                                    const std::string &content);
 
+    /**
+     * @brief Build an XML snippet for SetOutputAction.
+     * @param prefix  Used to construct a unique name attribute, e.g. "<SetOutputAction name='prefix_SetOutput' .../>".
+     * @param io_type The IO type input port (e.g. "tool" or "controller").
+     * @param ionum   The IO channel number.
+     * @param value   Desired output (0 or 1).
+     * @param success_key (optional) Blackboard output key for the "success" port.
+     *                   If non-empty, it will be used like success="{my_key}".
+     * @return A string of the XML snippet.
+     */
+    std::string buildSetOutputXML(const std::string &prefix,
+                                  const std::string &io_type,
+                                  int ionum,
+                                  int value,
+                                  const std::string &success_key = "");
+
+    /**
+     * @brief Build an XML snippet for GetInputAction.
+     * @param prefix  Used to construct a unique name attribute.
+     * @param io_type The IO type input port (e.g. "tool" or "controller").
+     * @param ionum   The IO channel number to read.
+     * @param value_key (optional) Blackboard key to store the "value" output.
+     * @param success_key (optional) Blackboard key to store the "success" output.
+     * @return A string of the XML snippet.
+     */
+    std::string buildGetInputXML(const std::string &prefix,
+                                 const std::string &io_type,
+                                 int ionum,
+                                 const std::string &value_key = "",
+                                 const std::string &success_key = "");
+
+    /**
+     * @brief Build an XML snippet for CheckRobotStateAction.
+     * @param prefix  Used to construct a unique name attribute.
+     * @param ready_key    (optional) Blackboard key for the "ready" output.
+     * @param err_key      (optional) Blackboard key for the "err" output.
+     * @param mode_key     (optional) Blackboard key for the "mode" output.
+     * @param state_key    (optional) Blackboard key for the "state" output.
+     * @param message_key  (optional) Blackboard key for the "message" output.
+     * @return A string of the XML snippet.
+     */
+    std::string buildCheckRobotStateXML(const std::string &prefix,
+                                        const std::string &ready_key = "",
+                                        const std::string &err_key = "",
+                                        const std::string &mode_key = "",
+                                        const std::string &state_key = "",
+                                        const std::string &message_key = "");
+
+    /**
+     * @brief Build an XML snippet for ResetRobotStateAction.
+     * @param prefix  Used to construct a unique name attribute.
+     * @param success_key (optional) Blackboard key for the "success" output.
+     * @return A string of the XML snippet.
+     */
+    std::string buildResetRobotStateXML(const std::string &prefix,
+                                        const std::string &success_key = "");
+
     // ----------------------------------------------------------------------------
     // Helper functions
     // ----------------------------------------------------------------------------

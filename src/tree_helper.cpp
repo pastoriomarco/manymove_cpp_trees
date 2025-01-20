@@ -288,6 +288,123 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
+    std::string buildSetOutputXML(const std::string &prefix,
+                                  const std::string &io_type,
+                                  int ionum,
+                                  int value,
+                                  const std::string &success_key)
+    {
+        // Construct a node name
+        std::string node_name = prefix + "_SetOutput";
+
+        std::ostringstream xml;
+        xml << "<SetOutputAction "
+            << "name=\"" << node_name << "\" "
+            << "io_type=\"" << io_type << "\" "
+            << "ionum=\"" << ionum << "\" "
+            << "value=\"" << value << "\"";
+
+        // If the user wants the success output on blackboard
+        if (!success_key.empty())
+        {
+            xml << " success=\"{" << success_key << "}\"";
+        }
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildGetInputXML(const std::string &prefix,
+                                 const std::string &io_type,
+                                 int ionum,
+                                 const std::string &value_key,
+                                 const std::string &success_key)
+    {
+        // Construct a node name
+        std::string node_name = prefix + "_GetInput";
+
+        std::ostringstream xml;
+        xml << "<GetInputAction "
+            << "name=\"" << node_name << "\" "
+            << "io_type=\"" << io_type << "\" "
+            << "ionum=\"" << ionum << "\"";
+
+        // If user wants the read value on the blackboard
+        if (!value_key.empty())
+        {
+            xml << " value=\"{" << value_key << "}\"";
+        }
+
+        // If user wants the success output on the blackboard
+        if (!success_key.empty())
+        {
+            xml << " success=\"{" << success_key << "}\"";
+        }
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildCheckRobotStateXML(const std::string &prefix,
+                                        const std::string &ready_key,
+                                        const std::string &err_key,
+                                        const std::string &mode_key,
+                                        const std::string &state_key,
+                                        const std::string &message_key)
+    {
+        // Construct a node name
+        std::string node_name = prefix + "_CheckRobotState";
+
+        std::ostringstream xml;
+        xml << "<CheckRobotStateAction "
+            << "name=\"" << node_name << "\"";
+
+        // Optional outputs
+        if (!ready_key.empty())
+        {
+            xml << " ready=\"{" << ready_key << "}\"";
+        }
+        if (!err_key.empty())
+        {
+            xml << " err=\"{" << err_key << "}\"";
+        }
+        if (!mode_key.empty())
+        {
+            xml << " mode=\"{" << mode_key << "}\"";
+        }
+        if (!state_key.empty())
+        {
+            xml << " state=\"{" << state_key << "}\"";
+        }
+        if (!message_key.empty())
+        {
+            xml << " message=\"{" << message_key << "}\"";
+        }
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildResetRobotStateXML(const std::string &prefix,
+                                        const std::string &success_key)
+    {
+        // Construct a node name
+        std::string node_name = prefix + "_ResetRobotState";
+
+        std::ostringstream xml;
+        xml << "<ResetRobotStateAction "
+            << "name=\"" << node_name << "\"";
+
+        // Optional output
+        if (!success_key.empty())
+        {
+            xml << " success=\"{" << success_key << "}\"";
+        }
+
+        xml << "/>";
+        return xml.str();
+    }
+
     // ----------------------------------------------------------------------------
     // Helper functions
     // ----------------------------------------------------------------------------

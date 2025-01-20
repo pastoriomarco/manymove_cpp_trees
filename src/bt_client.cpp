@@ -250,7 +250,20 @@ int main(int argc, char **argv)
                                  post_transform_xyz_rpy));
 
     // ----------------------------------------------------------------------------
-    // 5) Combine the objects and moves in a sequences that can run a number of times:
+    // 5) Define Signals calls for real robot:
+    // ----------------------------------------------------------------------------
+
+    std::string signals_branch;
+    signals_branch += buildSetOutputXML("GripperClose", "tool", 1, 1, "gripper_close_success");
+    signals_branch += "\n";
+    signals_branch += buildGetInputXML("WaitForSensor", "controller", 3, "sensor_value", "sensor_read_ok");
+    signals_branch += "\n";
+    signals_branch += buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
+    signals_branch += "\n";
+    signals_branch += buildResetRobotStateXML("ResetRobot", "robot_reset_success");
+
+    // ----------------------------------------------------------------------------
+    // 6) Combine the objects and moves in a sequences that can run a number of times:
     // ----------------------------------------------------------------------------
     //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
@@ -275,13 +288,13 @@ int main(int argc, char **argv)
     std::string master_body = sequenceWrapperXML("GlobalMasterSequence", master_branches_xml);
 
     // ----------------------------------------------------------------------------
-    // 6) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">
+    // 7) Wrap everything into a top-level <root> with <BehaviorTree ID="MasterTree">
     // ----------------------------------------------------------------------------
     std::string final_tree_xml = mainTreeWrapperXML("MasterTree", master_body);
 
     RCLCPP_INFO(node->get_logger(), "=== Programmatically Generated Tree XML ===\n%s", final_tree_xml.c_str());
 
-    // 7) Register node types
+    // 8) Register node types
     BT::BehaviorTreeFactory factory;
     factory.registerNodeType<PlanningAction>("PlanningAction");
     factory.registerNodeType<ExecuteTrajectory>("ExecuteTrajectory");
@@ -298,7 +311,7 @@ int main(int argc, char **argv)
     factory.registerNodeType<CheckRobotStateAction>("CheckRobotStateAction");
     factory.registerNodeType<ResetRobotStateAction>("ResetRobotStateAction");
 
-    // 8) Create the tree from final_tree_xml
+    // 9) Create the tree from final_tree_xml
     BT::Tree tree;
     try
     {
@@ -310,10 +323,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // 9) ZMQ publisher (optional, to visualize in Groot)
+    // 10) ZMQ publisher (optional, to visualize in Groot)
     BT::PublisherZMQ publisher(tree);
 
-    // 10) Tick the tree
+    // 11) Tick the tree
     rclcpp::Rate rate(1000);
     while (rclcpp::ok())
     {
