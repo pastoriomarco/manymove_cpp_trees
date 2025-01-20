@@ -289,7 +289,6 @@ namespace manymove_cpp_trees
         }
 
         action_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "execute_manipulator_traj");
-        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "stop_motion");
         RCLCPP_INFO(node_->get_logger(),
                     "ExecuteTrajectory [%s]: waiting 5s for 'execute_manipulator_traj' server...",
                     name.c_str());
@@ -297,6 +296,25 @@ namespace manymove_cpp_trees
         {
             throw BT::RuntimeError(
                 "ExecuteTrajectory: 'execute_manipulator_traj' not available after 5s.");
+        }
+
+        /**
+         * The stop_motion action servers takes as input any traj and just stops the motion of the manipulator
+         * by overriding the current trajectory execution by traj_controller with the current position, 
+         * zero velocity, and deceleration time. The robot will try to "spring back" to the position it was
+         * when the stop command is issued within the deceleration time. The higher the time, the smoother
+         * the stop, but the higher the move lenght to decelerate and come back to the stop point.
+         * At current time, the deceleration_time is hardcoded in the manymove_planner in execute_stop() function
+         * inside the action_server implementation.
+         */
+        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "stop_motion");
+        RCLCPP_INFO(node_->get_logger(),
+                    "ExecuteTrajectory [%s]: waiting 5s for 'stop_motion' server...",
+                    name.c_str());
+        if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
+        {
+            throw BT::RuntimeError(
+                "ExecuteTrajectory: 'stop_motion' not available after 5s.");
         }
 
         RCLCPP_INFO(node_->get_logger(),

@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     approach_pick_target.position.z += 0.02;
 
     // Test poses to place the object, these are not overwritten later (for now)
-    Pose drop_target = createPose(0.2, 0.1, 0.15, 1.0, 0.0, 0.0, 0.0);
+    Pose drop_target = createPose(0.2, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0);
     Pose approach_drop_target = drop_target;
     approach_drop_target.position.z += 0.02;
 
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
      */
     std::vector<double> pick_pre_transform_xyz_rpy = {-0.002, 0.0, 0.0, 0.0, 1.57, 0.0};
     std::vector<double> approach_pre_transform_xyz_rpy = {-0.05, 0.0, 0.0, 0.0, 1.57, 0.0};
-    std::vector<double> post_transform_xyz_rpy = {0.0, 0.0, 0.025, 3.14, 0.0, 0.0};
+    std::vector<double> post_transform_xyz_rpy = {0.0, 0.0, -0.025, 3.14, 0.0, 0.0};
 
     // Translate get_pose_action to xml tree leaf
     std::string get_pick_pose_xml = buildObjectActionXML(
