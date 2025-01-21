@@ -35,13 +35,13 @@ namespace manymove_cpp_trees
      *        using a static global counter for each move.
      *
      * The signature is:
-     *  buildParallelPlanExecuteXML(prefix, moves, blackboard, [optional] reset_trajs)
+     *  buildParallelPlanExecuteXML(node_prefix, moves, blackboard, [optional] reset_trajs)
      *
      * Example output:
      *
      *  <ResetTrajectories move_ids="id1,id2,..."/>
-     *  <Parallel name="ParallelPlanExecute_{prefix}_{blockStartID}" success_threshold="2" failure_threshold="1">
-     *    <Sequence name="PlanningSequence_{prefix}_{blockStartID}">
+     *  <Parallel name="ParallelPlanExecute_{node_prefix}_{blockStartID}" success_threshold="2" failure_threshold="1">
+     *    <Sequence name="PlanningSequence_{node_prefix}_{blockStartID}">
      *      <PlanningAction name="PlanMove_{globalID}" ...
      *         move_id="{globalID}"
      *         planned_move_id="{planned_move_id_{globalID}}"
@@ -49,7 +49,7 @@ namespace manymove_cpp_trees
      *         planning_validity="{validity_{globalID}}"/>
      *      ...
      *    </Sequence>
-     *    <Sequence name="ExecutionSequence_{prefix}_{blockStartID}">
+     *    <Sequence name="ExecutionSequence_{node_prefix}_{blockStartID}">
      *      <ExecuteTrajectory name="ExecMove_{globalID}"
      *         planned_move_id="{planned_move_id_{globalID}}"
      *         trajectory="{trajectory_{globalID}}"
@@ -69,25 +69,95 @@ namespace manymove_cpp_trees
      *  you can set @p reset_trajs to false to avoid generating ResetTrajectories if your control logic don't require it,
      *  further simplifying the tree's structure.
      *
-     * @param prefix A label for the parallel block (e.g., "preparatory" or "pickAndHoming")
-     * @param moves The vector of Move that we plan/execute in this parallel block
-     * @param blackboard The blackboard to populate with move IDs
+     * @param node_prefix A label for the parallel block (e.g., "preparatory" or "pickAndHoming")
+     * @param moves       The vector of Move that we plan/execute in this parallel block
+     * @param blackboard  The blackboard to populate with move IDs
      * @param reset_trajs This condition generates the ResetTrajectories leaf node to reset all the sequence's trajs before planning and executing
      * @return A string with the generated XML snippet
      */
-    std::string buildParallelPlanExecuteXML(const std::string &prefix,
+    std::string buildParallelPlanExecuteXML(const std::string &node_prefix,
                                             const std::vector<Move> &moves,
                                             BT::Blackboard::Ptr blackboard,
                                             bool reset_trajs = true);
 
     /**
      * @brief Builds an XML snippet for a single object action node based on the provided ObjectAction.
-     * @param prefix A prefix to ensure unique node names within the tree.
-     * @param action The ObjectAction struct containing action details.
+     * @param node_prefix A node_prefix to ensure unique node names within the tree.
+     * @param action      The ObjectAction struct containing action details.
      * @return A string containing the XML snippet for the object action node.
      * @throws std::invalid_argument If an unsupported ObjectActionType is provided.
      */
-    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action);
+    std::string buildObjectActionXML(const std::string &node_prefix, const ObjectAction &action);
+
+    /**
+     * @brief Build an XML snippet for SetOutputAction.
+     * @param node_prefix  Used to construct a unique name attribute, e.g. "<SetOutputAction name='node_prefix_SetOutput' .../>".
+     * @param io_type      The IO type input port (e.g. "tool" or "controller").
+     * @param ionum        The IO channel number.
+     * @param value        The value of the input to compare to. Accepts 0 or 1, any value that is not 0 will be considered 1.
+     * @return A string of the XML snippet.
+     */
+    std::string buildSetOutputXML(const std::string &node_prefix,
+                                  const std::string &io_type,
+                                  int ionum,
+                                  int value);
+
+    /**
+     * @brief Build an XML snippet for GetInputAction.
+     * @param node_prefix Used to construct a unique name attribute.
+     * @param io_type     The IO type input port (e.g. "tool" or "controller").
+     * @param ionum       The IO channel number to read.
+     * @return A string of the XML snippet.
+     */
+    std::string buildGetInputXML(const std::string &node_prefix,
+                                 const std::string &io_type,
+                                 int ionum);
+
+    /**
+     * @brief Build an XML snippet for to check if an input value corresponds to the one requested.
+     * @param node_prefix Used to construct a unique name attribute.
+     * @param io_type     The IO type input port (e.g. "tool" or "controller").
+     * @param ionum       The IO channel number to read.
+     * @param value       The value of the input to compare to. Accepts 0 or 1, any value that is not 0 will be considered 1.
+     * @param wait        If true the function waits for the input to have the right value.
+     * @param timeout_ms  Milliseconds for timeout, if 0 then no timeout.
+     * @return A string of the XML snippet.
+     */
+    std::string buildCheckInputXML(const std::string &node_prefix,
+                                   const std::string &io_type,
+                                   int ionum,
+                                   int value,
+                                   bool wait = true,
+                                   int timeout_ms = 0);
+
+    /**
+     * @brief Build an XML snippet for CheckRobotStateAction.
+     * @param node_prefix  Used to construct a unique name attribute.
+     * @param ready_key    (optional) Blackboard key for the "ready" output.
+     * @param err_key      (optional) Blackboard key for the "err" output.
+     * @param mode_key     (optional) Blackboard key for the "mode" output.
+     * @param state_key    (optional) Blackboard key for the "state" output.
+     * @param message_key  (optional) Blackboard key for the "message" output.
+     * @return A string of the XML snippet.
+     */
+    std::string buildCheckRobotStateXML(const std::string &node_prefix,
+                                        const std::string &ready_key = "",
+                                        const std::string &err_key = "",
+                                        const std::string &mode_key = "",
+                                        const std::string &state_key = "",
+                                        const std::string &message_key = "");
+
+    /**
+     * @brief Build an XML snippet for ResetRobotStateAction.
+     * @param node_prefix  Used to construct a unique name attribute.
+     *  The Blackboard key for the "success" output is always "robot_state_success".
+     * @return A string of the XML snippet.
+     */
+    std::string buildResetRobotStateXML(const std::string &node_prefix);
+
+    // ----------------------------------------------------------------------------
+    // Wrappers
+    // ----------------------------------------------------------------------------
 
     /**
      * @brief Wrap multiple snippets in a <Sequence> with a given name.
@@ -102,7 +172,7 @@ namespace manymove_cpp_trees
      * the robot's state and can interrupt planning/execution branches if necessary.
      *
      * @param sequence_name A unique name for the ReactiveSequence.
-     * @param branches A vector of XML snippets representing the child nodes.
+     * @param branches      A vector of XML snippets representing the child nodes.
      * @return A string containing the generated XML snippet.
      */
     std::string reactiveWrapperXML(const std::string &sequence_name,
@@ -115,8 +185,8 @@ namespace manymove_cpp_trees
      * number of attempts. To repeat indefinitely, set num_cycles to -1.
      *
      * @param sequence_name A unique name for the RepeatNode node.
-     * @param branches A vector of XML snippets representing the child nodes.
-     * @param num_cycles Number of repeat attempts (-1 for infinite retries).
+     * @param branches      A vector of XML snippets representing the child nodes.
+     * @param num_cycles    Number of repeat attempts (-1 for infinite retries).
      * @return A string containing the generated XML snippet.
      */
     std::string repeatWrapperXML(const std::string &sequence_name,
@@ -130,7 +200,7 @@ namespace manymove_cpp_trees
      * sequence one is successful.
      *
      * @param sequence_name A unique name for the Fallback.
-     * @param branches A vector of XML snippets representing the child nodes.
+     * @param branches      A vector of XML snippets representing the child nodes.
      * @return A string containing the generated XML snippet.
      */
     std::string fallbackWrapperXML(const std::string &sequence_name,
@@ -142,63 +212,6 @@ namespace manymove_cpp_trees
      */
     std::string mainTreeWrapperXML(const std::string &tree_id,
                                    const std::string &content);
-
-    /**
-     * @brief Build an XML snippet for SetOutputAction.
-     * @param prefix  Used to construct a unique name attribute, e.g. "<SetOutputAction name='prefix_SetOutput' .../>".
-     * @param io_type The IO type input port (e.g. "tool" or "controller").
-     * @param ionum   The IO channel number.
-     * @param value   Desired output (0 or 1).
-     * @param success_key (optional) Blackboard output key for the "success" port.
-     *                   If non-empty, it will be used like success="{my_key}".
-     * @return A string of the XML snippet.
-     */
-    std::string buildSetOutputXML(const std::string &prefix,
-                                  const std::string &io_type,
-                                  int ionum,
-                                  int value,
-                                  const std::string &success_key = "");
-
-    /**
-     * @brief Build an XML snippet for GetInputAction.
-     * @param prefix  Used to construct a unique name attribute.
-     * @param io_type The IO type input port (e.g. "tool" or "controller").
-     * @param ionum   The IO channel number to read.
-     * @param value_key (optional) Blackboard key to store the "value" output.
-     * @param success_key (optional) Blackboard key to store the "success" output.
-     * @return A string of the XML snippet.
-     */
-    std::string buildGetInputXML(const std::string &prefix,
-                                 const std::string &io_type,
-                                 int ionum,
-                                 const std::string &value_key = "",
-                                 const std::string &success_key = "");
-
-    /**
-     * @brief Build an XML snippet for CheckRobotStateAction.
-     * @param prefix  Used to construct a unique name attribute.
-     * @param ready_key    (optional) Blackboard key for the "ready" output.
-     * @param err_key      (optional) Blackboard key for the "err" output.
-     * @param mode_key     (optional) Blackboard key for the "mode" output.
-     * @param state_key    (optional) Blackboard key for the "state" output.
-     * @param message_key  (optional) Blackboard key for the "message" output.
-     * @return A string of the XML snippet.
-     */
-    std::string buildCheckRobotStateXML(const std::string &prefix,
-                                        const std::string &ready_key = "",
-                                        const std::string &err_key = "",
-                                        const std::string &mode_key = "",
-                                        const std::string &state_key = "",
-                                        const std::string &message_key = "");
-
-    /**
-     * @brief Build an XML snippet for ResetRobotStateAction.
-     * @param prefix  Used to construct a unique name attribute.
-     * @param success_key (optional) Blackboard key for the "success" output.
-     * @return A string of the XML snippet.
-     */
-    std::string buildResetRobotStateXML(const std::string &prefix,
-                                        const std::string &success_key = "");
 
     // ----------------------------------------------------------------------------
     // Helper functions
@@ -215,9 +228,9 @@ namespace manymove_cpp_trees
      * @param x offset about X axis.
      * @param y offset about Y axis.
      * @param x offset about Z axis.
-     * @param roll rotation about X axis.
+     * @param roll  rotation about X axis.
      * @param pitch rotation about Y axis.
-     * @param yaw rotation about Z axis.
+     * @param yaw   rotation about Z axis.
      * @return geometry_msgs::msg::Pose corresponding to the values inserted
      */
     geometry_msgs::msg::Pose createPoseRPY(const double &x = 0.0,

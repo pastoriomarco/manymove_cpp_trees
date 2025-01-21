@@ -6,6 +6,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <behaviortree_cpp_v3/action_node.h>
+#include <behaviortree_cpp_v3/condition_node.h>
 
 #include <manymove_planner/action/plan_manipulator.hpp>
 #include <manymove_planner/action/execute_trajectory.hpp>
@@ -691,6 +692,40 @@ namespace manymove_cpp_trees
         bool result_received_;
 
         ResetRobotState::Result action_result_;
+    };
+
+    /**
+     * @class CheckBlackboardValue
+     * @brief A simple condition node that checks if a blackboard key
+     *        matches an expected integer value.
+     */
+    class CheckBlackboardValue : public BT::ConditionNode
+    {
+    public:
+        /**
+         * @brief Constructor
+         * @param name The node's name in the XML
+         * @param config The node's configuration (ports, blackboard, etc.)
+         */
+        CheckBlackboardValue(const std::string &name,
+                             const BT::NodeConfiguration &config);
+
+        /**
+         * @brief Required BT ports: "key" (the blackboard key) and "value" (the expected integer).
+         */
+        static BT::PortsList providedPorts()
+        {
+            return {
+                BT::InputPort<std::string>("key", "Name of the blackboard key to check"),
+                BT::InputPort<int>("value", "Expected integer value")};
+        }
+
+    protected:
+        /**
+         * @brief The main check. Returns SUCCESS if the blackboard's "key"
+         *        equals the expected "value", otherwise FAILURE.
+         */
+        BT::NodeStatus tick() override;
     };
 
 } // namespace manymove_cpp_trees

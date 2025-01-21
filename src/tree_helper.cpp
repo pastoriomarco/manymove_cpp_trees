@@ -22,7 +22,7 @@ namespace manymove_cpp_trees
         max_move_config.acceleration_scaling_factor = 1.0;
         max_move_config.step_size = 0.01;
         max_move_config.jump_threshold = 0.0;
-        max_move_config.max_cartesian_speed = 0.5;
+        max_move_config.max_cartesian_speed = 0.2;
         max_move_config.max_exec_tries = 5;
         max_move_config.plan_number_target = 8;
         max_move_config.plan_number_limit = 32;
@@ -31,7 +31,7 @@ namespace manymove_cpp_trees
         MovementConfig mid_move_config = max_move_config;
         mid_move_config.velocity_scaling_factor /= 2.0;
         mid_move_config.acceleration_scaling_factor /= 2.0;
-        mid_move_config.max_cartesian_speed = 0.2;
+        mid_move_config.max_cartesian_speed = 0.1;
 
         MovementConfig slow_move_config = max_move_config;
         slow_move_config.velocity_scaling_factor /= 4.0;
@@ -48,7 +48,7 @@ namespace manymove_cpp_trees
     // Builder functions to build xml tree snippets programmatically
     // ----------------------------------------------------------------------------
 
-    std::string buildParallelPlanExecuteXML(const std::string &prefix,
+    std::string buildParallelPlanExecuteXML(const std::string &node_prefix,
                                             const std::vector<Move> &moves,
                                             BT::Blackboard::Ptr blackboard,
                                             bool reset_trajs)
@@ -64,7 +64,7 @@ namespace manymove_cpp_trees
 
         // Planning Sequence
         std::ostringstream planning_seq;
-        planning_seq << "    <Sequence name=\"PlanningSequence_" << prefix << "_" << blockStartID << "\">\n";
+        planning_seq << "    <Sequence name=\"PlanningSequence_" << node_prefix << "_" << blockStartID << "\">\n";
 
         for (const auto &move : moves)
         {
@@ -94,7 +94,7 @@ namespace manymove_cpp_trees
 
         // Execution Sequence
         std::ostringstream execution_seq;
-        execution_seq << "    <Sequence name=\"ExecutionSequence_" << prefix << "_" << blockStartID << "\">\n";
+        execution_seq << "    <Sequence name=\"ExecutionSequence_" << node_prefix << "_" << blockStartID << "\">\n";
 
         for (int mid : move_ids)
         {
@@ -110,7 +110,7 @@ namespace manymove_cpp_trees
 
         // Parallel node
         std::ostringstream parallel_node;
-        parallel_node << "  <Parallel name=\"ParallelPlanExecute_" << prefix << "_" << blockStartID
+        parallel_node << "  <Parallel name=\"ParallelPlanExecute_" << node_prefix << "_" << blockStartID
                       << "\" success_threshold=\"2\" failure_threshold=\"1\">\n"
                       << planning_seq.str()
                       << execution_seq.str()
@@ -138,10 +138,10 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
-    std::string buildObjectActionXML(const std::string &prefix, const ObjectAction &action)
+    std::string buildObjectActionXML(const std::string &node_prefix, const ObjectAction &action)
     {
-        // Generate a unique node name using the prefix and object_id
-        std::string node_name = prefix + "_" + action.object_id + "_" + objectActionTypeToString(action.type);
+        // Generate a unique node name using the node_prefix and object_id
+        std::string node_name = node_prefix + "_" + action.object_id + "_" + objectActionTypeToString(action.type);
 
         // Start constructing the XML node
         std::ostringstream xml;
@@ -220,6 +220,233 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
+    std::string buildSetOutputXML(const std::string &node_prefix,
+                                  const std::string &io_type,
+                                  int ionum,
+                                  int value)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_SetOutput";
+
+        std::ostringstream xml;
+        xml << "<SetOutputAction "
+            << "name=\"" << node_name << "\" "
+            << "io_type=\"" << io_type << "\" "
+            << "ionum=\"" << ionum << "\" "
+            << "value=\"" << ((value == 0) ? "0" : "1") << "\"";
+
+        // If the user wants the success output on blackboard
+        xml << " success=\"{" << io_type << "_" << ionum << "_success" << "}\"";
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildGetInputXML(const std::string &node_prefix,
+                                 const std::string &io_type,
+                                 int ionum)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_GetInput";
+
+        std::ostringstream xml;
+        xml << "<GetInputAction "
+            << "name=\"" << node_name << "\" "
+            << "io_type=\"" << io_type << "\" "
+            << "ionum=\"" << ionum << "\"";
+
+        // If user wants the read value on the blackboard
+        xml << " value=\"{" << io_type << "_" << ionum << "}\"";
+
+        // If user wants the success output on the blackboard
+        xml << " success=\"{" << io_type << "_" << ionum << "_success" << "}\"";
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildCheckInputXML(const std::string &node_prefix,
+                                   const std::string &io_type,
+                                   int ionum,
+                                   int value,
+                                   bool wait,
+                                   int timeout_ms)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_CheckInput";
+
+        // The value can be 0 or 1, so we trim anything different from 0 or 1. If it's not 0, then it is 1.
+        int value_to_check = (value == 0 ? 0 : 1);
+
+        // Build GetInputAction
+        std::string check_condition_xml = buildGetInputXML(node_name, io_type, ionum);
+
+        // Build the CheckBlackboardValue node
+        std::ostringstream inner_xml;
+        inner_xml << "<Condition ID=\"CheckBlackboardValue\""
+                  << " key=\"" << io_type << "_" << ionum << "\""
+                  << " value=\"" << value_to_check << "\" />";
+
+        // Wrap in a Sequence
+        std::ostringstream sequence_xml;
+        sequence_xml << sequenceWrapperXML(node_name + "_Sequence", {check_condition_xml, inner_xml.str()});
+
+        if (wait)
+        {
+            // TODO: hardcoded dalay, evaluate if it should be set by user or not:
+            int delay_ms = 200;
+
+            std::ostringstream delay_and_fail_xml;
+            delay_and_fail_xml << "<Delay delay_msec=\"" << delay_ms << "\">\n"
+                               << "<AlwaysFailure />" << "\n"
+                               << "</Delay>" << "\n";
+
+            std::string fallback_check_or_delay_xml = fallbackWrapperXML((node_name + "_Fallback"), {sequence_xml.str(), delay_and_fail_xml.str()});
+
+            std::ostringstream wait_xml;
+
+            // Tree modified after finding this issue:
+            // https://github.com/BehaviorTree/BehaviorTree.CPP/issues/395
+            // wait_xml << "<RetryUntilSuccessful name=\"" << node_name << "_Retry\" max_attempts=\"-1\">\n"
+            //       << fallback_check_or_delay << "\n"
+            //       << "</RetryUntilSuccessful>";
+
+            wait_xml << "<Inverter>\n"
+                     << "<KeepRunningUntilFailure>\n"
+                     << "<Inverter>\n"
+                     << fallback_check_or_delay_xml << "\n"
+                     << "</Inverter>\n"
+                     << "</KeepRunningUntilFailure>\n"
+                     << "</Inverter>\n";
+
+            if (timeout_ms > 0)
+            {
+                std::ostringstream timeout_xml;
+                timeout_xml << "<Timeout msec=\"" << timeout_ms << "\">\n"
+                            << wait_xml.str()
+                            << "</Timeout>";
+
+                return sequenceWrapperXML(node_name + "_WaitTimeout", {timeout_xml.str()});
+            }
+
+            return sequenceWrapperXML(node_name + "_WaitTimeout", {wait_xml.str()});
+        }
+
+        // If wait was set to false, return the sequence without further additions
+        return sequence_xml.str();
+    }
+
+    /*
+    std::string buildCheckInputXML(const std::string &node_prefix,
+                               const std::string &io_type,
+                               int ionum,
+                               int value,
+                               bool wait,
+                               int timeout_ms)
+{
+    // Construct a node name
+    std::string node_name = node_prefix + "_CheckInput";
+
+    // The value can be 0 or 1, so we normalize it
+    int value_to_check = (value == 0 ? 0 : 1);
+
+    std::ostringstream xml;
+
+    // Build GetInputAction
+    std::string get_input_xml = buildGetInputXML(node_prefix, io_type, ionum);
+
+    // Build a custom ScriptCondition-like node to check the blackboard value
+    std::ostringstream check_condition;
+    check_condition << "<Condition name=\"CheckBlackboardValue\""
+                    << " key=\"" << io_type << "_" << ionum << "\""
+                    << " value=\"" << value_to_check << "\" />";
+
+    if (wait)
+    {
+        // Wrap in RetryUntilSuccessful with a Delay node to introduce wait time
+        std::ostringstream retry_xml;
+        retry_xml << "<RetryUntilSuccessful name=\"" << node_name << "_Retry\" max_attempts=\"-1\">\n"
+                  << "  <Sequence name=\"" << node_name << "_Sequence\">\n"
+                  << "    " << get_input_xml << "\n"
+                  << "    " << check_condition.str() << "\n"
+                  << "    <Delay value=\"" << timeout_ms << "\" />\n"
+                  << "  </Sequence>\n"
+                  << "</RetryUntilSuccessful>";
+        xml << retry_xml.str();
+    }
+    else
+    {
+        // Wrap in a Sequence without Retry
+        xml << "<Sequence name=\"" << node_name << "_Sequence\">\n"
+            << "  " << get_input_xml << "\n"
+            << "  " << check_condition.str() << "\n"
+            << "</Sequence>";
+    }
+
+    return xml.str();
+}
+    */
+
+    std::string buildCheckRobotStateXML(const std::string &node_prefix,
+                                        const std::string &ready_key,
+                                        const std::string &err_key,
+                                        const std::string &mode_key,
+                                        const std::string &state_key,
+                                        const std::string &message_key)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_CheckRobotState";
+
+        std::ostringstream xml;
+        xml << "<CheckRobotStateAction "
+            << "name=\"" << node_name << "\"";
+
+        // Optional outputs
+        if (!ready_key.empty())
+        {
+            xml << " ready=\"{" << ready_key << "}\"";
+        }
+        if (!err_key.empty())
+        {
+            xml << " err=\"{" << err_key << "}\"";
+        }
+        if (!mode_key.empty())
+        {
+            xml << " mode=\"{" << mode_key << "}\"";
+        }
+        if (!state_key.empty())
+        {
+            xml << " state=\"{" << state_key << "}\"";
+        }
+        if (!message_key.empty())
+        {
+            xml << " message=\"{" << message_key << "}\"";
+        }
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    std::string buildResetRobotStateXML(const std::string &node_prefix)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_ResetRobotState";
+
+        std::ostringstream xml;
+        xml << "<ResetRobotStateAction "
+            << "name=\"" << node_name << "\"";
+
+        // Output
+        xml << " success=\"{" << "robot_state_success" << "}\"";
+
+        xml << "/>";
+        return xml.str();
+    }
+
+    // ----------------------------------------------------------------------------
+    // Wrappers
+    // ----------------------------------------------------------------------------
+
     std::string sequenceWrapperXML(const std::string &sequence_name,
                                    const std::vector<std::string> &branches)
     {
@@ -285,123 +512,6 @@ namespace manymove_cpp_trees
         xml << content << "\n";
         xml << "  </BehaviorTree>\n";
         xml << "</root>\n";
-        return xml.str();
-    }
-
-    std::string buildSetOutputXML(const std::string &prefix,
-                                  const std::string &io_type,
-                                  int ionum,
-                                  int value,
-                                  const std::string &success_key)
-    {
-        // Construct a node name
-        std::string node_name = prefix + "_SetOutput";
-
-        std::ostringstream xml;
-        xml << "<SetOutputAction "
-            << "name=\"" << node_name << "\" "
-            << "io_type=\"" << io_type << "\" "
-            << "ionum=\"" << ionum << "\" "
-            << "value=\"" << value << "\"";
-
-        // If the user wants the success output on blackboard
-        if (!success_key.empty())
-        {
-            xml << " success=\"{" << success_key << "}\"";
-        }
-
-        xml << "/>";
-        return xml.str();
-    }
-
-    std::string buildGetInputXML(const std::string &prefix,
-                                 const std::string &io_type,
-                                 int ionum,
-                                 const std::string &value_key,
-                                 const std::string &success_key)
-    {
-        // Construct a node name
-        std::string node_name = prefix + "_GetInput";
-
-        std::ostringstream xml;
-        xml << "<GetInputAction "
-            << "name=\"" << node_name << "\" "
-            << "io_type=\"" << io_type << "\" "
-            << "ionum=\"" << ionum << "\"";
-
-        // If user wants the read value on the blackboard
-        if (!value_key.empty())
-        {
-            xml << " value=\"{" << value_key << "}\"";
-        }
-
-        // If user wants the success output on the blackboard
-        if (!success_key.empty())
-        {
-            xml << " success=\"{" << success_key << "}\"";
-        }
-
-        xml << "/>";
-        return xml.str();
-    }
-
-    std::string buildCheckRobotStateXML(const std::string &prefix,
-                                        const std::string &ready_key,
-                                        const std::string &err_key,
-                                        const std::string &mode_key,
-                                        const std::string &state_key,
-                                        const std::string &message_key)
-    {
-        // Construct a node name
-        std::string node_name = prefix + "_CheckRobotState";
-
-        std::ostringstream xml;
-        xml << "<CheckRobotStateAction "
-            << "name=\"" << node_name << "\"";
-
-        // Optional outputs
-        if (!ready_key.empty())
-        {
-            xml << " ready=\"{" << ready_key << "}\"";
-        }
-        if (!err_key.empty())
-        {
-            xml << " err=\"{" << err_key << "}\"";
-        }
-        if (!mode_key.empty())
-        {
-            xml << " mode=\"{" << mode_key << "}\"";
-        }
-        if (!state_key.empty())
-        {
-            xml << " state=\"{" << state_key << "}\"";
-        }
-        if (!message_key.empty())
-        {
-            xml << " message=\"{" << message_key << "}\"";
-        }
-
-        xml << "/>";
-        return xml.str();
-    }
-
-    std::string buildResetRobotStateXML(const std::string &prefix,
-                                        const std::string &success_key)
-    {
-        // Construct a node name
-        std::string node_name = prefix + "_ResetRobotState";
-
-        std::ostringstream xml;
-        xml << "<ResetRobotStateAction "
-            << "name=\"" << node_name << "\"";
-
-        // Optional output
-        if (!success_key.empty())
-        {
-            xml << " success=\"{" << success_key << "}\"";
-        }
-
-        xml << "/>";
         return xml.str();
     }
 

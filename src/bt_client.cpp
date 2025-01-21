@@ -2,7 +2,6 @@
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
-#include <behaviortree_cpp_v3/decorators/repeat_node.h>
 
 #include "manymove_cpp_trees/action_nodes.hpp"
 #include "manymove_cpp_trees/move.hpp"
@@ -253,30 +252,36 @@ int main(int argc, char **argv)
     // 5) Define Signals calls for real robot:
     // ----------------------------------------------------------------------------
 
-    std::string signals_branch;
-    signals_branch += buildSetOutputXML("GripperClose", "tool", 1, 1, "gripper_close_success");
-    signals_branch += "\n";
-    signals_branch += buildGetInputXML("WaitForSensor", "controller", 3, "sensor_value", "sensor_read_ok");
-    signals_branch += "\n";
-    signals_branch += buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
-    signals_branch += "\n";
-    signals_branch += buildResetRobotStateXML("ResetRobot", "robot_reset_success");
+    std::string signal_gripper_close_xml = buildSetOutputXML("GripperClose", "controller", 0, 1);
+    std::string signal_gripper_open_xml = buildSetOutputXML("GripperOpen", "controller", 0, 0);
+    std::string check_gripper_close_xml = buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 3000);
+    std::string check_gripper_open_xml = buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 3000);
+    std::string check_robot_state_xml = buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
+    std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot");
 
     // ----------------------------------------------------------------------------
     // 6) Combine the objects and moves in a sequences that can run a number of times:
     // ----------------------------------------------------------------------------
+
+    // Let's build the full sequence in locically separated blocks:
+    std::string spawn_objects_xml = sequenceWrapperXML("SpawnObjects", {init_ground_obj_xml, init_wall_obj_xml, init_cylinder_obj_xml, init_mesh_obj_xml});
+    std::string get_grasp_object_poses_xml = sequenceWrapperXML("GetGraspPoses", {get_pick_pose_xml, get_approach_pose_xml});
+    std::string go_to_pick_pose_xml = sequenceWrapperXML("GoToPickPose", {prep_sequence_xml, pick_sequence_xml});
+    std::string close_gripper_xml = sequenceWrapperXML("CloseGripper", {signal_gripper_close_xml, check_gripper_close_xml, attach_mesh_obj_xml});
+    std::string open_gripper_xml = sequenceWrapperXML("OpenGripper", {signal_gripper_open_xml, detach_mesh_obj_xml});
+
     //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
         "RepeatForever",
-        {init_ground_obj_xml, init_wall_obj_xml, init_cylinder_obj_xml, init_mesh_obj_xml, //< We add all the objects to the scene
-         get_pick_pose_xml, get_approach_pose_xml,                                         //< We get the updated poses relative to the objects
-         prep_sequence_xml, pick_sequence_xml,                                             //< Prep sequence and pick sequence
-         attach_mesh_obj_xml,                                                              //< We attach the object
-         drop_sequence_xml,                                                                //< Drop sequence
-         detach_mesh_obj_xml,                                                              //< We detach the object
-         home_sequence_xml,                                                                //< Homing sequence
-         remove_mesh_obj_xml},                                                             //< We delete the object for it to be added on the next cycle in the original position
-        -1);                                                                               //< num_cycles=-1 for infinite
+        {spawn_objects_xml,          //< We add all the objects to the scene
+         get_grasp_object_poses_xml, //< We get the updated poses relative to the objects
+         go_to_pick_pose_xml,        //< Prep sequence and pick sequence
+         close_gripper_xml,          //< We attach the object
+         drop_sequence_xml,          //< Drop sequence
+         open_gripper_xml,           //< We detach the object
+         home_sequence_xml,          //< Homing sequence
+         remove_mesh_obj_xml},       //< We delete the object for it to be added on the next cycle in the original position
+        -1);                         //< num_cycles=-1 for infinite
 
     // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
     //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other childs
@@ -296,6 +301,7 @@ int main(int argc, char **argv)
 
     // 8) Register node types
     BT::BehaviorTreeFactory factory;
+
     factory.registerNodeType<PlanningAction>("PlanningAction");
     factory.registerNodeType<ExecuteTrajectory>("ExecuteTrajectory");
     factory.registerNodeType<ResetTrajectories>("ResetTrajectories");
@@ -310,6 +316,8 @@ int main(int argc, char **argv)
     factory.registerNodeType<GetInputAction>("GetInputAction");
     factory.registerNodeType<CheckRobotStateAction>("CheckRobotStateAction");
     factory.registerNodeType<ResetRobotStateAction>("ResetRobotStateAction");
+
+    factory.registerNodeType<CheckBlackboardValue>("CheckBlackboardValue");
 
     // 9) Create the tree from final_tree_xml
     BT::Tree tree;

@@ -1736,7 +1736,7 @@ namespace manymove_cpp_trees
 
         // We have the final result
         setOutput("success", action_result_.success);
-        setOutput("value", action_result_.value);
+        setOutput("value", static_cast<int>(action_result_.value));
 
         if (action_result_.success)
         {
@@ -2077,6 +2077,58 @@ namespace manymove_cpp_trees
             action_result_.message = "ResetRobotState aborted or failed";
         }
         result_received_ = true;
+    }
+
+    // ---------------------------------------------------------------
+    // CheckBlackboardValue Implementation
+    // ---------------------------------------------------------------
+    CheckBlackboardValue::CheckBlackboardValue(const std::string &name,
+                                               const BT::NodeConfiguration &config)
+        : BT::ConditionNode(name, config)
+    {
+        // If you need to confirm the blackboard is present:
+        if (!config.blackboard)
+        {
+            throw BT::RuntimeError("CheckBlackboardValue: no blackboard provided.");
+        }
+        // If you needed an rclcpp node for logging, you could do:
+        // config.blackboard->get("node", node_);
+        // but this condition node typically doesn't require an ROS node.
+    }
+
+    BT::NodeStatus CheckBlackboardValue::tick()
+    {
+        // 1) Extract input ports "key" and "value"
+        std::string key;
+        int expected_value;
+        if (!getInput<std::string>("key", key))
+        {
+            throw BT::RuntimeError("CheckBlackboardValue: Missing required input [key]");
+        }
+        if (!getInput<int>("value", expected_value))
+        {
+            throw BT::RuntimeError("CheckBlackboardValue: Missing required input [value]");
+        }
+
+        // 2) Read the blackboard
+        int actual_value = 0;
+        if (!config().blackboard->get(key, actual_value))
+        {
+            // Key not found => we fail
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // 3) Compare the blackboard value to the expected value
+        if (actual_value == expected_value)
+        {
+            // Condition satisfied => SUCCESS
+            return BT::NodeStatus::SUCCESS;
+        }
+        else
+        {
+            // Condition not satisfied => FAILURE
+            return BT::NodeStatus::FAILURE;
+        }
     }
 
 } // namespace manymove_cpp_trees
