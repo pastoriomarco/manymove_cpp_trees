@@ -189,7 +189,8 @@ namespace manymove_cpp_trees
     std::string buildSetOutputXML(const std::string &node_prefix,
                                   const std::string &io_type,
                                   int ionum,
-                                  int value)
+                                  int value,
+                                  const std::string &robot_prefix)
     {
         // Construct a node name
         std::string node_name = node_prefix + "_SetOutput";
@@ -199,6 +200,7 @@ namespace manymove_cpp_trees
             << "name=\"" << node_name << "\" "
             << "io_type=\"" << io_type << "\" "
             << "ionum=\"" << ionum << "\" "
+            << "robot_prefix=\"" << robot_prefix << "\" "
             << "value=\"" << ((value == 0) ? "0" : "1") << "\"";
 
         // If the user wants the success output on blackboard
@@ -210,7 +212,8 @@ namespace manymove_cpp_trees
 
     std::string buildGetInputXML(const std::string &node_prefix,
                                  const std::string &io_type,
-                                 int ionum)
+                                 int ionum,
+                                 const std::string &robot_prefix)
     {
         // Construct a node name
         std::string node_name = node_prefix + "_GetInput";
@@ -219,7 +222,8 @@ namespace manymove_cpp_trees
         xml << "<GetInputAction "
             << "name=\"" << node_name << "\" "
             << "io_type=\"" << io_type << "\" "
-            << "ionum=\"" << ionum << "\"";
+            << "ionum=\"" << ionum << "\""
+            << "robot_prefix=\"" << robot_prefix << "\" ";
 
         // If user wants the read value on the blackboard
         xml << " value=\"{" << io_type << "_" << ionum << "}\"";
@@ -235,6 +239,7 @@ namespace manymove_cpp_trees
                                    const std::string &io_type,
                                    int ionum,
                                    int value,
+                                   const std::string &robot_prefix,
                                    bool wait,
                                    int timeout_ms)
     {
@@ -245,7 +250,7 @@ namespace manymove_cpp_trees
         int value_to_check = (value == 0 ? 0 : 1);
 
         // Build GetInputAction
-        std::string check_condition_xml = buildGetInputXML(node_name, io_type, ionum);
+        std::string check_condition_xml = buildGetInputXML(node_name, io_type, ionum, robot_prefix);
 
         // Build the CheckBlackboardValue node
         std::ostringstream inner_xml;
@@ -304,6 +309,7 @@ namespace manymove_cpp_trees
     }
 
     std::string buildCheckRobotStateXML(const std::string &node_prefix,
+                                        const std::string &robot_prefix,
                                         const std::string &ready_key,
                                         const std::string &err_key,
                                         const std::string &mode_key,
@@ -315,7 +321,8 @@ namespace manymove_cpp_trees
 
         std::ostringstream xml;
         xml << "<CheckRobotStateAction "
-            << "name=\"" << node_name << "\"";
+            << "name=\"" << node_name << "\""
+            << "robot_prefix=\"" << robot_prefix << "\" ";
 
         // Optional outputs
         if (!ready_key.empty())
@@ -343,14 +350,16 @@ namespace manymove_cpp_trees
         return xml.str();
     }
 
-    std::string buildResetRobotStateXML(const std::string &node_prefix)
+    std::string buildResetRobotStateXML(const std::string &node_prefix,
+                                        const std::string &robot_prefix)
     {
         // Construct a node name
         std::string node_name = node_prefix + "_ResetRobotState";
 
         std::ostringstream xml;
         xml << "<ResetRobotStateAction "
-            << "name=\"" << node_name << "\"";
+            << "name=\"" << node_name << "\""
+            << "robot_prefix=\"" << robot_prefix << "\" ";
 
         // Output
         xml << " success=\"{" << "robot_state_success" << "}\"";

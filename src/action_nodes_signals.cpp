@@ -27,17 +27,25 @@ namespace manymove_cpp_trees
             throw BT::RuntimeError("SetOutputAction: 'node' not found in blackboard.");
         }
 
-        // Create the action client for "set_output"
-        action_client_ = rclcpp_action::create_client<SetOutput>(node_, "set_output");
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            prefix = ""; // default if not provided
+        }
+
+        std::string server_name = prefix + "set_output";
+
+        // Create the action client
+        action_client_ = rclcpp_action::create_client<SetOutput>(node_, server_name);
 
         RCLCPP_INFO(node_->get_logger(),
-                    "SetOutputAction [%s]: waiting up to 5s for 'set_output' action server...",
-                    name.c_str());
+                    "SetOutputAction [%s]: waiting up to 5s for '%s' action server...",
+                    name.c_str(), server_name.c_str());
 
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
             throw BT::RuntimeError(
-                "SetOutputAction: 'set_output' server not available after waiting.");
+                "SetOutputAction: server '" + server_name + "' not available after 5s.");
         }
     }
 
@@ -185,15 +193,22 @@ namespace manymove_cpp_trees
             throw BT::RuntimeError("GetInputAction: 'node' not found in blackboard.");
         }
 
-        action_client_ = rclcpp_action::create_client<GetInput>(node_, "get_input");
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            prefix = "";
+        }
+        std::string server_name = prefix + "get_input";
 
+        // Create action client
+        action_client_ = rclcpp_action::create_client<GetInput>(node_, server_name);
         RCLCPP_INFO(node_->get_logger(),
-                    "GetInputAction [%s]: waiting up to 5s for 'get_input' server...",
-                    name.c_str());
+                    "GetInputAction [%s]: waiting up to 5s for '%s' server...",
+                    name.c_str(), server_name.c_str());
 
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError("'get_input' action server not available.");
+            throw BT::RuntimeError("'" + server_name + "' action server not available.");
         }
     }
 
@@ -334,17 +349,22 @@ namespace manymove_cpp_trees
             throw BT::RuntimeError("CheckRobotStateAction: 'node' not found in blackboard.");
         }
 
-        // Create the action client for "check_robot_state"
-        action_client_ = rclcpp_action::create_client<CheckRobotState>(node_, "check_robot_state");
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            prefix = "";
+        }
+        std::string server_name = prefix + "check_robot_state";
+
+        action_client_ = rclcpp_action::create_client<CheckRobotState>(node_, server_name);
 
         RCLCPP_INFO(node_->get_logger(),
-                    "CheckRobotStateAction [%s]: waiting up to 5s for 'check_robot_state' server...",
-                    name.c_str());
+                    "CheckRobotStateAction [%s]: waiting 5s for server '%s'...",
+                    name.c_str(), server_name.c_str());
 
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError(
-                "CheckRobotStateAction: 'check_robot_state' server not available after waiting.");
+            throw BT::RuntimeError("CheckRobotStateAction: server '" + server_name + "' not available after 5s.");
         }
     }
 
@@ -483,15 +503,22 @@ namespace manymove_cpp_trees
             throw BT::RuntimeError("ResetRobotStateAction: 'node' not found in blackboard.");
         }
 
-        action_client_ = rclcpp_action::create_client<ResetRobotState>(node_, "reset_robot_state");
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            prefix = "";
+        }
+        std::string server_name = prefix + "reset_robot_state";
+
+        action_client_ = rclcpp_action::create_client<ResetRobotState>(node_, server_name);
 
         RCLCPP_INFO(node_->get_logger(),
-                    "ResetRobotStateAction [%s]: waiting up to 5s for 'reset_robot_state' server...",
-                    name.c_str());
+                    "ResetRobotStateAction [%s]: waiting up to 5s for '%s' server...",
+                    name.c_str(), server_name.c_str());
 
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError("'reset_robot_state' server not available.");
+            throw BT::RuntimeError("'" + server_name + "' server not available.");
         }
     }
 

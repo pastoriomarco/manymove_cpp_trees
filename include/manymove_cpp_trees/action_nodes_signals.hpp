@@ -49,7 +49,9 @@ namespace manymove_cpp_trees
                 BT::InputPort<std::string>("io_type", "IO type: 'tool' or 'controller'"),
                 BT::InputPort<int>("ionum", "Which IO channel number"),
                 BT::InputPort<int>("value", "Desired output value (0 or 1)"),
-                BT::OutputPort<bool>("success", "Whether set_output succeeded")};
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
+                BT::OutputPort<bool>("success", "Whether set_output succeeded"),
+            };
         }
 
     protected:
@@ -92,8 +94,10 @@ namespace manymove_cpp_trees
             return {
                 BT::InputPort<std::string>("io_type", "IO type: 'tool' or 'controller'"),
                 BT::InputPort<int>("ionum", "Which IO channel to read"),
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
                 BT::OutputPort<int>("value", "Read value from the input (0 or 1)"),
-                BT::OutputPort<bool>("success", "Whether get_input succeeded")};
+                BT::OutputPort<bool>("success", "Whether get_input succeeded"),
+            };
         }
 
     protected:
@@ -134,6 +138,7 @@ namespace manymove_cpp_trees
         static BT::PortsList providedPorts()
         {
             return {
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
                 BT::OutputPort<bool>("ready", "True if robot is ready"),
                 BT::OutputPort<int>("err", "Current error code"),
                 BT::OutputPort<int>("mode", "Robot mode"),
@@ -175,7 +180,9 @@ namespace manymove_cpp_trees
         static BT::PortsList providedPorts()
         {
             return {
-                BT::OutputPort<bool>("success", "True if robot reset is successful")};
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
+                BT::OutputPort<bool>("success", "True if robot reset is successful"),
+            };
         }
 
     protected:
@@ -219,7 +226,9 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<std::string>("key", "Name of the blackboard key to check"),
-                BT::InputPort<int>("value", "Expected integer value")};
+                BT::InputPort<int>("value", "Expected integer value"),
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
+            };
         }
 
     protected:

@@ -86,44 +86,51 @@ namespace manymove_cpp_trees
      * @param io_type      The IO type input port (e.g. "tool" or "controller").
      * @param ionum        The IO channel number.
      * @param value        The value of the input to compare to. Accepts 0 or 1, any value that is not 0 will be considered 1.
+     * @param robot_prefix A prefix for the robot's action servers
      * @return A string of the XML snippet.
      */
     std::string buildSetOutputXML(const std::string &node_prefix,
                                   const std::string &io_type,
                                   int ionum,
-                                  int value);
+                                  int value,
+                                  const std::string &robot_prefix = "");
 
     /**
      * @brief Build an XML snippet for GetInputAction.
-     * @param node_prefix Used to construct a unique name attribute.
-     * @param io_type     The IO type input port (e.g. "tool" or "controller").
-     * @param ionum       The IO channel number to read.
+     * @param node_prefix  Used to construct a unique name attribute.
+     * @param io_type      The IO type input port (e.g. "tool" or "controller").
+     * @param ionum        The IO channel number to read.
+     * @param robot_prefix A prefix for the robot's action servers
      * @return A string of the XML snippet.
      */
     std::string buildGetInputXML(const std::string &node_prefix,
                                  const std::string &io_type,
-                                 int ionum);
+                                 int ionum,
+                                 const std::string &robot_prefix = "");
 
     /**
      * @brief Build an XML snippet for to check if an input value corresponds to the one requested.
-     * @param node_prefix Used to construct a unique name attribute.
-     * @param io_type     The IO type input port (e.g. "tool" or "controller").
-     * @param ionum       The IO channel number to read.
-     * @param value       The value of the input to compare to. Accepts 0 or 1, any value that is not 0 will be considered 1.
-     * @param wait        If true the function waits for the input to have the right value.
-     * @param timeout_ms  Milliseconds for timeout, if 0 then no timeout.
+     * @param node_prefix  Used to construct a unique name attribute.
+     * @param io_type      The IO type input port (e.g. "tool" or "controller").
+     * @param ionum        The IO channel number to read.
+     * @param value        The value of the input to compare to. Accepts 0 or 1, any value that is not 0 will be considered 1.
+     * @param robot_prefix A prefix for the robot's action servers
+     * @param wait         If true the function waits for the input to have the right value.
+     * @param timeout_ms   Milliseconds for timeout, if 0 then no timeout.
      * @return A string of the XML snippet.
      */
     std::string buildCheckInputXML(const std::string &node_prefix,
                                    const std::string &io_type,
                                    int ionum,
                                    int value,
+                                   const std::string &robot_prefix = "",
                                    bool wait = true,
                                    int timeout_ms = 0);
 
     /**
      * @brief Build an XML snippet for CheckRobotStateAction.
      * @param node_prefix  Used to construct a unique name attribute.
+     * @param robot_prefix A prefix for the robot's action servers
      * @param ready_key    (optional) Blackboard key for the "ready" output.
      * @param err_key      (optional) Blackboard key for the "err" output.
      * @param mode_key     (optional) Blackboard key for the "mode" output.
@@ -132,6 +139,7 @@ namespace manymove_cpp_trees
      * @return A string of the XML snippet.
      */
     std::string buildCheckRobotStateXML(const std::string &node_prefix,
+                                        const std::string &robot_prefix = "",
                                         const std::string &ready_key = "",
                                         const std::string &err_key = "",
                                         const std::string &mode_key = "",
@@ -141,10 +149,12 @@ namespace manymove_cpp_trees
     /**
      * @brief Build an XML snippet for ResetRobotStateAction.
      * @param node_prefix  Used to construct a unique name attribute.
+     * @param robot_prefix A prefix for the robot's action servers
      *  The Blackboard key for the "success" output is always "robot_state_success".
      * @return A string of the XML snippet.
      */
-    std::string buildResetRobotStateXML(const std::string &node_prefix);
+    std::string buildResetRobotStateXML(const std::string &node_prefix,
+                                        const std::string &robot_prefix = "");
 
     // ----------------------------------------------------------------------------
     // Wrappers

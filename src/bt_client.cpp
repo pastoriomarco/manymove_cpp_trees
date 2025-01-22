@@ -175,13 +175,13 @@ int main(int argc, char **argv)
 
     // Translate it to xml tree leaf or branch
     std::string prep_sequence_xml = sequenceWrapperXML(
-        "ComposedPrepSequence", {to_rest_xml, scan_around_xml});
+        robot_prefix + "ComposedPrepSequence", {to_rest_xml, scan_around_xml});
     std::string pick_sequence_xml = sequenceWrapperXML(
-        "ComposedPickSequence", {pick_object_xml});
+        robot_prefix + "ComposedPickSequence", {pick_object_xml});
     std::string drop_sequence_xml = sequenceWrapperXML(
-        "ComposedDropSequence", {drop_object_xml});
+        robot_prefix + "ComposedDropSequence", {drop_object_xml});
     std::string home_sequence_xml = sequenceWrapperXML(
-        "ComposedHomeSequence", {to_home_xml});
+        robot_prefix + "ComposedHomeSequence", {to_home_xml});
 
     // ----------------------------------------------------------------------------
     // 3) Build blocks for objects handling
@@ -196,11 +196,7 @@ int main(int argc, char **argv)
     auto cylinderpose = createPoseRPY(0.1, 0.2, 0.005, 0.0, 1.57, 0.0);
 
     std::string mesh_file = "package://manymove_object_manager/meshes/unit_tube.stl";
-    // // The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
-    // std::vector<double> mesh_scale = {0.01, 0.01, 0.1};
-    // // We place it on the floor and lay it on its side: with this rotation of +90 degrees on Y axis, the Z+ axis of the mesh aligns with X+ of world frame
-    // // The X+ axis of the object will be facing down parallel to Z- of the world
-    // auto mesh_pose = createPoseRPY(0.1, -0.2, 0.005, 0.0, 1.57, 0.0);
+
     std::vector<double> mesh_scale = {0.01, 0.01, 0.1};                  //< The tube is vertical with dimension 1m x 1m x 1m. We scale it to 10x10x100 mm
     auto mesh_pose = createPoseRPY(0.1, -0.2, 0.2005, 0.785, 1.57, 0.0); //< We place it on the floor and lay it on its side, X+ facing down
 
@@ -266,12 +262,12 @@ int main(int argc, char **argv)
 
     // Let's send and receive signals only if the robot is real, and let's fake a 250ms on inputs otherwise
 
-    std::string signal_gripper_close_xml = (is_robot_real ? buildSetOutputXML("GripperClose", "controller", 0, 1) : "");
-    std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0) : "");
-    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
-    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
-    std::string check_robot_state_xml = (is_robot_real ? buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg") : "");
-    std::string reset_robot_state_xml = (is_robot_real ? buildResetRobotStateXML("ResetRobot") : "");
+    std::string signal_gripper_close_xml = (is_robot_real ? buildSetOutputXML("GripperClose", "controller", 0, 1, robot_prefix) : "");
+    std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0, robot_prefix) : "");
+    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
+    std::string check_robot_state_xml = (is_robot_real ? buildCheckRobotStateXML("CheckRobot", robot_prefix, "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg") : "");
+    std::string reset_robot_state_xml = (is_robot_real ? buildResetRobotStateXML("ResetRobot", robot_prefix) : "");
 
     // ----------------------------------------------------------------------------
     // 6) Combine the objects and moves in a sequences that can run a number of times:
