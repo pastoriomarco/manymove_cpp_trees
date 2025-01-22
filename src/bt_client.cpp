@@ -145,19 +145,19 @@ int main(int argc, char **argv)
      * sense of what's in that variable.
      */
     std::string to_rest_xml = buildParallelPlanExecuteXML(
-        "toRest", rest_position, blackboard, robot_prefix, true);
+        robot_prefix + "toRest", rest_position, blackboard, robot_prefix, true);
 
     std::string scan_around_xml = buildParallelPlanExecuteXML(
-        "scanAround", scan_surroundings, blackboard, robot_prefix, true);
+        robot_prefix + "scanAround", scan_surroundings, blackboard, robot_prefix, true);
 
     std::string pick_object_xml = buildParallelPlanExecuteXML(
-        "pick", pick_sequence, blackboard, robot_prefix, true);
+        robot_prefix + "pick", pick_sequence, blackboard, robot_prefix, true);
 
     std::string drop_object_xml = buildParallelPlanExecuteXML(
-        "drop", drop_sequence, blackboard, robot_prefix, true);
+        robot_prefix + "drop", drop_sequence, blackboard, robot_prefix, true);
 
     std::string to_home_xml = buildParallelPlanExecuteXML(
-        "home", home_position, blackboard, robot_prefix, true);
+        robot_prefix + "home", home_position, blackboard, robot_prefix, true);
 
     /*
      * Combine the parallel move sequence blocks in logic sequences for the entire logic.
