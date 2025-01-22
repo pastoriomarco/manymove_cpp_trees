@@ -7,43 +7,6 @@ static int g_global_move_id = 0;
 
 namespace manymove_cpp_trees
 {
-
-    // ----------------------------------------------------------------------------
-    // Setup functions
-    // ----------------------------------------------------------------------------
-
-    std::unordered_map<std::string, manymove_planner::msg::MovementConfig>
-    defineMovementConfigs()
-    {
-        using manymove_planner::msg::MovementConfig;
-
-        MovementConfig max_move_config;
-        max_move_config.velocity_scaling_factor = 1.0;
-        max_move_config.acceleration_scaling_factor = 1.0;
-        max_move_config.step_size = 0.01;
-        max_move_config.jump_threshold = 0.0;
-        max_move_config.max_cartesian_speed = 0.2;
-        max_move_config.max_exec_tries = 5;
-        max_move_config.plan_number_target = 8;
-        max_move_config.plan_number_limit = 32;
-        max_move_config.smoothing_type = "time_optimal";
-
-        MovementConfig mid_move_config = max_move_config;
-        mid_move_config.velocity_scaling_factor /= 2.0;
-        mid_move_config.acceleration_scaling_factor /= 2.0;
-        mid_move_config.max_cartesian_speed = 0.1;
-
-        MovementConfig slow_move_config = max_move_config;
-        slow_move_config.velocity_scaling_factor /= 4.0;
-        slow_move_config.acceleration_scaling_factor /= 4.0;
-        slow_move_config.max_cartesian_speed = 0.05;
-
-        return {
-            {"max_move", max_move_config},
-            {"mid_move", mid_move_config},
-            {"slow_move", slow_move_config}};
-    }
-
     // ----------------------------------------------------------------------------
     // Builder functions to build xml tree snippets programmatically
     // ----------------------------------------------------------------------------

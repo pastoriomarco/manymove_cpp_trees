@@ -15,17 +15,6 @@
 
 namespace manymove_cpp_trees
 {
-
-    // ----------------------------------------------------------------------------
-    // Setup functions
-    // ----------------------------------------------------------------------------
-
-    /**
-     * @brief Return some standard MovementConfig presets (max_move, mid_move, slow_move).
-     */
-    std::unordered_map<std::string, manymove_planner::msg::MovementConfig>
-    defineMovementConfigs();
-
     // ----------------------------------------------------------------------------
     // Builder functions to build xml tree snippets programmatically
     // ----------------------------------------------------------------------------

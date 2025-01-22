@@ -254,12 +254,15 @@ int main(int argc, char **argv)
     // 5) Define Signals calls for real robot:
     // ----------------------------------------------------------------------------
 
-    std::string signal_gripper_close_xml = buildSetOutputXML("GripperClose", "controller", 0, 1);
-    std::string signal_gripper_open_xml = buildSetOutputXML("GripperOpen", "controller", 0, 0);
-    std::string check_gripper_close_xml = buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 3000);
-    std::string check_gripper_open_xml = buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 3000);
-    std::string check_robot_state_xml = buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
-    std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot");
+    // Let's send and receive signals only if the robot is real, and let's fake a 250ms on inputs
+    bool is_robot_real = false;
+
+    std::string signal_gripper_close_xml = (is_robot_real ? buildSetOutputXML("GripperClose", "controller", 0, 1) : "");
+    std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0) : "");
+    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 3000) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 3000) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
+    std::string check_robot_state_xml = (is_robot_real ? buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg") : "");
+    std::string reset_robot_state_xml = (is_robot_real ? buildResetRobotStateXML("ResetRobot") : "");
 
     // ----------------------------------------------------------------------------
     // 6) Combine the objects and moves in a sequences that can run a number of times:
