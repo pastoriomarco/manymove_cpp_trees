@@ -3,7 +3,9 @@
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
-#include "manymove_cpp_trees/action_nodes.hpp"
+#include "manymove_cpp_trees/action_nodes_objects.hpp"
+#include "manymove_cpp_trees/action_nodes_planner.hpp"
+#include "manymove_cpp_trees/action_nodes_signals.hpp"
 #include "manymove_cpp_trees/move.hpp"
 #include "manymove_cpp_trees/object.hpp"
 #include "manymove_cpp_trees/tree_helper.hpp"
@@ -270,7 +272,7 @@ int main(int argc, char **argv)
     std::string close_gripper_xml = sequenceWrapperXML("CloseGripper", {signal_gripper_close_xml, check_gripper_close_xml, attach_mesh_obj_xml});
     std::string open_gripper_xml = sequenceWrapperXML("OpenGripper", {signal_gripper_open_xml, detach_mesh_obj_xml});
 
-    //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
+    // Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
         "RepeatForever",
         {spawn_objects_xml,          //< We add all the objects to the scene
