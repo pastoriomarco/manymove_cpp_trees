@@ -266,8 +266,10 @@ int main(int argc, char **argv)
     std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0, robot_prefix) : "");
     std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
     std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
-    std::string check_robot_state_xml = (is_robot_real ? buildCheckRobotStateXML("CheckRobot", robot_prefix, "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg") : "");
-    std::string reset_robot_state_xml = (is_robot_real ? buildResetRobotStateXML("ResetRobot", robot_prefix) : "");
+    std::string check_robot_state_xml = buildCheckRobotStateXML("CheckRobot", robot_prefix, "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
+    std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot", robot_prefix);
+
+    std::string check_reset_robot_xml = (is_robot_real ? fallbackWrapperXML(robot_prefix + "CheckResetFallback", {check_robot_state_xml, reset_robot_state_xml}) : "");
 
     // ----------------------------------------------------------------------------
     // 6) Combine the objects and moves in a sequences that can run a number of times:
@@ -283,7 +285,8 @@ int main(int argc, char **argv)
     // Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
         "RepeatForever",
-        {spawn_objects_xml,          //< We add all the objects to the scene
+        {check_reset_robot_xml,      //< We check if the robot is active, if not we try to reset it
+         spawn_objects_xml,          //< We add all the objects to the scene
          get_grasp_object_poses_xml, //< We get the updated poses relative to the objects
          go_to_pick_pose_xml,        //< Prep sequence and pick sequence
          close_gripper_xml,          //< We attach the object
