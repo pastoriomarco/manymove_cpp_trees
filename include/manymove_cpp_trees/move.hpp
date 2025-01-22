@@ -41,7 +41,7 @@ namespace manymove_cpp_trees
         max_move_config.acceleration_scaling_factor = 1.0;
         max_move_config.step_size = 0.01;
         max_move_config.jump_threshold = 0.0;
-        max_move_config.max_cartesian_speed = 0.2;
+        max_move_config.max_cartesian_speed = 0.5;
         max_move_config.max_exec_tries = 5;
         max_move_config.plan_number_target = 8;
         max_move_config.plan_number_limit = 32;
@@ -50,12 +50,12 @@ namespace manymove_cpp_trees
         MovementConfig mid_move_config = max_move_config;
         mid_move_config.velocity_scaling_factor /= 2.0;
         mid_move_config.acceleration_scaling_factor /= 2.0;
-        mid_move_config.max_cartesian_speed = 0.1;
+        mid_move_config.max_cartesian_speed = 0.2;
 
         MovementConfig slow_move_config = max_move_config;
         slow_move_config.velocity_scaling_factor /= 4.0;
         slow_move_config.acceleration_scaling_factor /= 4.0;
-        slow_move_config.max_cartesian_speed = 0.05;
+        slow_move_config.max_cartesian_speed = 0.02;
 
         return {
             {"max_move", max_move_config},

@@ -51,4 +51,9 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
+# Install launch directory
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

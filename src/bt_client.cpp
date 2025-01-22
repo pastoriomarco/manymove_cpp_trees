@@ -29,6 +29,16 @@ int main(int argc, char **argv)
     auto node = rclcpp::Node::make_shared("bt_client_node");
     RCLCPP_INFO(node->get_logger(), "BT Client Node started (Purely Programmatic XML).");
 
+    // This parameter is to be set true if we are connected to a real robot that exposes the necessary services for manymove_signals
+    bool is_robot_real;
+    node->declare_parameter<bool>("is_robot_real", false);
+    node->get_parameter_or<bool>("is_robot_real", is_robot_real, false);
+
+    // This parameter indicates the prefix to apply to the robot's action servers
+    std::string robot_prefix;
+    node->declare_parameter<std::string>("robot_prefix", "");
+    node->get_parameter_or<std::string>("robot_prefix", robot_prefix, "");
+
     // ----------------------------------------------------------------------------
     // 1) Create a blackboard and set "node"
     // ----------------------------------------------------------------------------
@@ -135,19 +145,19 @@ int main(int argc, char **argv)
      * sense of what's in that variable.
      */
     std::string to_rest_xml = buildParallelPlanExecuteXML(
-        "toRest", rest_position, blackboard, true);
+        "toRest", rest_position, blackboard, robot_prefix, true);
 
     std::string scan_around_xml = buildParallelPlanExecuteXML(
-        "scanAround", scan_surroundings, blackboard, true);
+        "scanAround", scan_surroundings, blackboard, robot_prefix, true);
 
     std::string pick_object_xml = buildParallelPlanExecuteXML(
-        "pick", pick_sequence, blackboard, true);
+        "pick", pick_sequence, blackboard, robot_prefix, true);
 
     std::string drop_object_xml = buildParallelPlanExecuteXML(
-        "drop", drop_sequence, blackboard, true);
+        "drop", drop_sequence, blackboard, robot_prefix, true);
 
     std::string to_home_xml = buildParallelPlanExecuteXML(
-        "home", home_position, blackboard, true);
+        "home", home_position, blackboard, robot_prefix, true);
 
     /*
      * Combine the parallel move sequence blocks in logic sequences for the entire logic.
@@ -212,7 +222,7 @@ int main(int argc, char **argv)
     std::string init_mesh_obj_xml = fallbackWrapperXML("init_mesh_obj", {check_mesh_obj_xml, add_mesh_obj_xml});
 
     // the name of the link to attach the object to
-    std::string link_name = "link_tcp";
+    std::string link_name = robot_prefix + "link_tcp";
 
     std::string attach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createAttachObject("graspable_mesh", link_name));
     std::string detach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createDetachObject("graspable_mesh", link_name));
@@ -251,16 +261,15 @@ int main(int argc, char **argv)
                                  post_transform_xyz_rpy));
 
     // ----------------------------------------------------------------------------
-    // 5) Define Signals calls for real robot:
+    // 5) Define Signals calls:
     // ----------------------------------------------------------------------------
 
-    // Let's send and receive signals only if the robot is real, and let's fake a 250ms on inputs
-    bool is_robot_real = false;
+    // Let's send and receive signals only if the robot is real, and let's fake a 250ms on inputs otherwise
 
     std::string signal_gripper_close_xml = (is_robot_real ? buildSetOutputXML("GripperClose", "controller", 0, 1) : "");
     std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0) : "");
-    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 3000) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
-    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 3000) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
     std::string check_robot_state_xml = (is_robot_real ? buildCheckRobotStateXML("CheckRobot", "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg") : "");
     std::string reset_robot_state_xml = (is_robot_real ? buildResetRobotStateXML("ResetRobot") : "");
 

@@ -61,9 +61,11 @@ namespace manymove_cpp_trees
             return {
                 BT::InputPort<std::string>("move_id", "Unique identifier for the move"),
                 BT::InputPort<std::string>("pose_key", "Blackboard key to store the retrieved pose"),
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
                 BT::OutputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
                 BT::OutputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
-                BT::OutputPort<bool>("planning_validity", "Indicates if planning was successful")};
+                BT::OutputPort<bool>("planning_validity", "Indicates if planning was successful"),
+            };
         }
 
     protected:
@@ -123,7 +125,9 @@ namespace manymove_cpp_trees
             return {
                 BT::InputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
                 BT::InputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
-                BT::InputPort<bool>("planning_validity", "Indicates if planning was successful")};
+                BT::InputPort<bool>("planning_validity", "Indicates if planning was successful"),
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
+            };
         }
 
     protected:

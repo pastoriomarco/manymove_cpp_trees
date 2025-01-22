@@ -23,20 +23,28 @@ namespace manymove_cpp_trees
             throw BT::RuntimeError("PlanningAction: 'node' not found in blackboard.");
         }
 
+        // Retrive the robot_prefix
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            // if no robot_prefix provided, default to empty
+            prefix = "";
+        }
+        std::string server_name = prefix + "plan_manipulator";
+
         // Initialize the action client
-        action_client_ = rclcpp_action::create_client<PlanManipulator>(node_, "plan_manipulator");
         RCLCPP_INFO(node_->get_logger(),
-                    "PlanningAction [%s]: waiting up to 5s for 'plan_manipulator' server...",
-                    name.c_str());
+                    "PlanningAction [%s]: waiting up to 5s for '%s' server...",
+                    name.c_str(), server_name.c_str());
+        action_client_ = rclcpp_action::create_client<PlanManipulator>(node_, server_name);
 
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError("PlanningAction: 'plan_manipulator' server not available after 5s.");
+            throw BT::RuntimeError("PlanningAction: server " + server_name + " not available after 5s.");
         }
-
         RCLCPP_INFO(node_->get_logger(),
-                    "PlanningAction [%s]: Constructed with node [%s].",
-                    name.c_str(), node_->get_fully_qualified_name());
+                    "PlanningAction [%s]: Connected to server [%s].",
+                    name.c_str(), server_name.c_str());
     }
 
     BT::NodeStatus PlanningAction::onStart()
@@ -288,14 +296,23 @@ namespace manymove_cpp_trees
                 "ExecuteTrajectory constructor: 'node' not found in blackboard.");
         }
 
-        action_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "execute_manipulator_traj");
+        std::string prefix;
+        if (!getInput<std::string>("robot_prefix", prefix))
+        {
+            prefix = "";
+        }
+
+        // build server names with prefix
+        std::string exec_server = prefix + "execute_manipulator_traj";
+        std::string stop_server = prefix + "stop_motion";
+
+        action_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, exec_server);
         RCLCPP_INFO(node_->get_logger(),
-                    "ExecuteTrajectory [%s]: waiting 5s for 'execute_manipulator_traj' server...",
-                    name.c_str());
+                    "ExecuteTrajectory [%s]: waiting 5s for '%s' server...",
+                    name.c_str(), exec_server.c_str());
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError(
-                "ExecuteTrajectory: 'execute_manipulator_traj' not available after 5s.");
+            throw BT::RuntimeError("ExecuteTrajectory: server " + exec_server + " not available after 5s.");
         }
 
         /**
@@ -307,19 +324,20 @@ namespace manymove_cpp_trees
          * At current time, the deceleration_time is hardcoded in the manymove_planner in execute_stop() function
          * inside the action_server implementation.
          */
-        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, "stop_motion");
+        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, stop_server);
         RCLCPP_INFO(node_->get_logger(),
-                    "ExecuteTrajectory [%s]: waiting 5s for 'stop_motion' server...",
-                    name.c_str());
-        if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
+                    "ExecuteTrajectory [%s]: waiting 5s for '%s' server...",
+                    name.c_str(), stop_server.c_str());
+        if (!stop_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError(
-                "ExecuteTrajectory: 'stop_motion' not available after 5s.");
+            throw BT::RuntimeError("ExecuteTrajectory: server " + stop_server + " not available after 5s.");
         }
 
         RCLCPP_INFO(node_->get_logger(),
-                    "ExecuteTrajectory [%s]: Constructed with node [%s].",
-                    name.c_str(), node_->get_fully_qualified_name());
+                    "ExecuteTrajectory [%s]: Constructed with node [%s], "
+                    "connected to servers [%s] and [%s].",
+                    name.c_str(), node_->get_fully_qualified_name(),
+                    exec_server.c_str(), stop_server.c_str());
     }
 
     BT::NodeStatus ExecuteTrajectory::onStart()

@@ -14,6 +14,7 @@ namespace manymove_cpp_trees
     std::string buildParallelPlanExecuteXML(const std::string &node_prefix,
                                             const std::vector<Move> &moves,
                                             BT::Blackboard::Ptr blackboard,
+                                            const std::string &robot_prefix,
                                             bool reset_trajs)
     {
         std::ostringstream xml;
@@ -43,6 +44,7 @@ namespace manymove_cpp_trees
             planning_seq << "      <PlanningAction"
                          << " name=\"PlanMove_" << this_move_id << "\""
                          << " move_id=\"" << this_move_id << "\""
+                         << " robot_prefix=\"" << robot_prefix << "\""
                          << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
                          << " trajectory=\"{trajectory_" << this_move_id << "}\""
                          << " planning_validity=\"{validity_" << this_move_id << "}\""
@@ -63,6 +65,7 @@ namespace manymove_cpp_trees
         {
             execution_seq << "      <ExecuteTrajectory"
                           << " name=\"ExecMove_" << mid << "\""
+                          << " robot_prefix=\"" << robot_prefix << "\""
                           << " planned_move_id=\"{planned_move_id_" << mid << "}\""
                           << " trajectory=\"{trajectory_" << mid << "}\""
                           << " planning_validity=\"{validity_" << mid << "}\""
@@ -259,6 +262,7 @@ namespace manymove_cpp_trees
             // TODO: hardcoded dalay, evaluate if it should be set by user or not:
             int delay_ms = 200;
 
+            // Check here for details about <Delay> : https://github.com/BehaviorTree/BehaviorTree.CPP/issues/413
             std::ostringstream delay_and_fail_xml;
             delay_and_fail_xml << "<Delay delay_msec=\"" << delay_ms << "\">\n"
                                << "<AlwaysFailure />" << "\n"
@@ -298,57 +302,6 @@ namespace manymove_cpp_trees
         // If wait was set to false, return the sequence without further additions
         return sequence_xml.str();
     }
-
-    /*
-    std::string buildCheckInputXML(const std::string &node_prefix,
-                               const std::string &io_type,
-                               int ionum,
-                               int value,
-                               bool wait,
-                               int timeout_ms)
-{
-    // Construct a node name
-    std::string node_name = node_prefix + "_CheckInput";
-
-    // The value can be 0 or 1, so we normalize it
-    int value_to_check = (value == 0 ? 0 : 1);
-
-    std::ostringstream xml;
-
-    // Build GetInputAction
-    std::string get_input_xml = buildGetInputXML(node_prefix, io_type, ionum);
-
-    // Build a custom ScriptCondition-like node to check the blackboard value
-    std::ostringstream check_condition;
-    check_condition << "<Condition name=\"CheckBlackboardValue\""
-                    << " key=\"" << io_type << "_" << ionum << "\""
-                    << " value=\"" << value_to_check << "\" />";
-
-    if (wait)
-    {
-        // Wrap in RetryUntilSuccessful with a Delay node to introduce wait time
-        std::ostringstream retry_xml;
-        retry_xml << "<RetryUntilSuccessful name=\"" << node_name << "_Retry\" max_attempts=\"-1\">\n"
-                  << "  <Sequence name=\"" << node_name << "_Sequence\">\n"
-                  << "    " << get_input_xml << "\n"
-                  << "    " << check_condition.str() << "\n"
-                  << "    <Delay value=\"" << timeout_ms << "\" />\n"
-                  << "  </Sequence>\n"
-                  << "</RetryUntilSuccessful>";
-        xml << retry_xml.str();
-    }
-    else
-    {
-        // Wrap in a Sequence without Retry
-        xml << "<Sequence name=\"" << node_name << "_Sequence\">\n"
-            << "  " << get_input_xml << "\n"
-            << "  " << check_condition.str() << "\n"
-            << "</Sequence>";
-    }
-
-    return xml.str();
-}
-    */
 
     std::string buildCheckRobotStateXML(const std::string &node_prefix,
                                         const std::string &ready_key,

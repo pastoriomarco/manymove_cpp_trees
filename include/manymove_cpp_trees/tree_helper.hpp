@@ -61,12 +61,14 @@ namespace manymove_cpp_trees
      * @param node_prefix A label for the parallel block (e.g., "preparatory" or "pickAndHoming")
      * @param moves       The vector of Move that we plan/execute in this parallel block
      * @param blackboard  The blackboard to populate with move IDs
+     * @param robot_prefix A prefix for the robot's action servers
      * @param reset_trajs This condition generates the ResetTrajectories leaf node to reset all the sequence's trajs before planning and executing
      * @return A string with the generated XML snippet
      */
     std::string buildParallelPlanExecuteXML(const std::string &node_prefix,
                                             const std::vector<Move> &moves,
                                             BT::Blackboard::Ptr blackboard,
+                                            const std::string &robot_prefix = "",
                                             bool reset_trajs = true);
 
     /**
