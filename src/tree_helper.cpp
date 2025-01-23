@@ -365,6 +365,31 @@ namespace manymove_cpp_trees
         xml << " success=\"{" << "robot_state_success" << "}\"";
 
         xml << "/>";
+
+        return sequenceWrapperXML(
+            node_name + "_WaitTimeout",
+            {xml.str(), buildStopMotionXML(node_prefix, robot_prefix, 0.25)});
+
+        return xml.str();
+    }
+
+    std::string buildStopMotionXML(const std::string &node_prefix,
+                                   const std::string &robot_prefix,
+                                   double deceleration_time)
+    {
+        // Construct a node name
+        std::string node_name = node_prefix + "_StopMotion";
+
+        std::ostringstream xml;
+        xml << "<StopMotionAction "
+            << "name=\"" << node_name << "\" "
+            << "robot_prefix=\"" << robot_prefix << "\" "
+            << "deceleration_time=\"" << deceleration_time << "\" ";
+
+        // Output
+        // xml << " success=\"{" << "stop_motion_success" << "}\"";
+
+        xml << "/>";
         return xml.str();
     }
 

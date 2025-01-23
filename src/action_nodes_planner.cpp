@@ -428,10 +428,10 @@ namespace manymove_cpp_trees
                     name().c_str());
 
         // Cancel any in-progress "execute_manipulator_traj" goal
-        if (goal_sent_ && !result_received_)
-        {
-            action_client_->async_cancel_all_goals();
-        }
+        // if (goal_sent_ && !result_received_)
+        // {
+        //     action_client_->async_cancel_all_goals();
+        // }
         goal_sent_ = false;
         result_received_ = false;
         is_data_ready_ = false;
@@ -691,6 +691,180 @@ namespace manymove_cpp_trees
         }
 
         return BT::NodeStatus::SUCCESS;
+    }
+
+    // ------------------------------------------------------------------
+    // StopMotionAction
+    // ------------------------------------------------------------------
+
+    StopMotionAction::StopMotionAction(const std::string &name, const BT::NodeConfiguration &config)
+        : BT::StatefulActionNode(name, config),
+          stop_goal_sent_(false),
+          stop_result_received_(false),
+          stop_success_(false),
+          deceleration_time_(0.5) // Default value
+    {
+        // Retrieve the ROS node from the blackboard
+        if (!config.blackboard)
+        {
+            throw BT::RuntimeError("StopMotionAction: no blackboard provided.");
+        }
+        if (!config.blackboard->get("node", node_))
+        {
+            throw BT::RuntimeError("StopMotionAction: 'node' not found in blackboard.");
+        }
+
+        // Retrieve optional robot_prefix
+        getInput<std::string>("robot_prefix", robot_prefix_);
+
+        std::string stop_server_name = robot_prefix_ + "stop_motion";
+
+        // Create action client for stop_motion
+        stop_client_ = rclcpp_action::create_client<ExecuteTrajectoryAction>(node_, stop_server_name);
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "StopMotionAction [%s]: waiting up to 5s for server '%s'...",
+                    name.c_str(), stop_server_name.c_str());
+
+        if (!stop_client_->wait_for_action_server(std::chrono::seconds(5)))
+        {
+            throw BT::RuntimeError("StopMotionAction: server '" + stop_server_name + "' not available after 5s.");
+        }
+        else
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "StopMotionAction [%s]: Connected to server '%s'.",
+                        name.c_str(), stop_server_name.c_str());
+        }
+
+        // Retrieve deceleration_time if provided
+        getInput<double>("deceleration_time", deceleration_time_);
+    }
+
+    BT::NodeStatus StopMotionAction::onStart()
+    {
+        RCLCPP_INFO(node_->get_logger(),
+                    "StopMotionAction [%s]: onStart() called.",
+                    name().c_str());
+
+        stop_goal_sent_ = false;
+        stop_result_received_ = false;
+        stop_success_ = false;
+
+        return BT::NodeStatus::RUNNING;
+    }
+
+    BT::NodeStatus StopMotionAction::onRunning()
+    {
+        if (!stop_goal_sent_)
+        {
+            // Build a stop goal
+            ExecuteTrajectoryAction::Goal stop_goal;
+            // Depending on your controller's implementation, you might need to send an empty trajectory
+            // or a specific stop trajectory. Here, we'll assume sending an empty trajectory
+            // which the controller interprets as a stop command.
+
+            // Alternatively, you can construct a trajectory with the current position and zero velocity.
+            // For simplicity, we're sending an empty trajectory here.
+
+            // Optionally, set deceleration_time if your action server supports it
+            // stop_goal.deceleration_time = deceleration_time_; // Uncomment if applicable
+
+            // Send the goal
+            auto send_goal_options = rclcpp_action::Client<ExecuteTrajectoryAction>::SendGoalOptions();
+            send_goal_options.goal_response_callback =
+                std::bind(&StopMotionAction::goalResponseCallback, this, std::placeholders::_1);
+            send_goal_options.result_callback =
+                std::bind(&StopMotionAction::resultCallback, this, std::placeholders::_1);
+
+            stop_client_->async_send_goal(stop_goal, send_goal_options);
+            stop_goal_sent_ = true;
+
+            RCLCPP_INFO(node_->get_logger(),
+                        "StopMotionAction [%s]: STOP goal sent. Waiting for result...",
+                        name().c_str());
+        }
+
+        if (stop_result_received_)
+        {
+            if (stop_success_)
+            {
+                RCLCPP_INFO(node_->get_logger(),
+                            "StopMotionAction [%s]: STOP succeeded => SUCCESS.",
+                            name().c_str());
+                return BT::NodeStatus::SUCCESS;
+            }
+            else
+            {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "StopMotionAction [%s]: STOP failed => FAILURE.",
+                             name().c_str());
+                return BT::NodeStatus::FAILURE;
+            }
+        }
+
+        // Still waiting for the result
+        return BT::NodeStatus::RUNNING;
+    }
+
+    void StopMotionAction::onHalted()
+    {
+        RCLCPP_WARN(node_->get_logger(),
+                    "StopMotionAction [%s]: onHalted => cancel goal if needed.",
+                    name().c_str());
+
+        if (stop_goal_sent_ && !stop_result_received_)
+        {
+            stop_client_->async_cancel_all_goals();
+            RCLCPP_WARN(node_->get_logger(),
+                        "StopMotionAction [%s]: STOP goal canceled.",
+                        name().c_str());
+        }
+
+        stop_goal_sent_ = false;
+        stop_result_received_ = false;
+        stop_success_ = false;
+    }
+
+    void StopMotionAction::goalResponseCallback(std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle)
+    {
+        if (!goal_handle)
+        {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "StopMotionAction [%s]: STOP goal was rejected by the server.",
+                         name().c_str());
+            stop_success_ = false;
+            stop_result_received_ = true;
+        }
+        else
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "StopMotionAction [%s]: STOP goal was accepted by the server.",
+                        name().c_str());
+        }
+    }
+
+    void StopMotionAction::resultCallback(const GoalHandleExecuteTrajectory::WrappedResult &wrapped_result)
+    {
+        if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "StopMotionAction [%s]: STOP command succeeded. Message: %s",
+                        name().c_str(),
+                        wrapped_result.result->message.c_str());
+            stop_success_ = true;
+        }
+        else
+        {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "StopMotionAction [%s]: STOP command failed with code %d. Message: %s",
+                         name().c_str(),
+                         static_cast<int>(wrapped_result.code),
+                         wrapped_result.result ? wrapped_result.result->message.c_str() : "No message");
+            stop_success_ = false;
+        }
+
+        stop_result_received_ = true;
     }
 
 } // namespace manymove_cpp_trees

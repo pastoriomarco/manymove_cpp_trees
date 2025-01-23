@@ -329,6 +329,7 @@ int main(int argc, char **argv)
     factory.registerNodeType<GetInputAction>("GetInputAction");
     factory.registerNodeType<CheckRobotStateAction>("CheckRobotStateAction");
     factory.registerNodeType<ResetRobotStateAction>("ResetRobotStateAction");
+    factory.registerNodeType<StopMotionAction>("StopMotionAction");
 
     factory.registerNodeType<CheckBlackboardValue>("CheckBlackboardValue");
 

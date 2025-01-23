@@ -201,6 +201,70 @@ namespace manymove_cpp_trees
         rclcpp::Node::SharedPtr node_;
     };
 
+    /**
+     * @class StopMotionAction
+     * @brief A stateful BT node that sends a stop command to the stop_motion action server.
+     *
+     * This node sends an empty trajectory or a predefined stop trajectory to ensure the robot halts safely.
+     */
+    class StopMotionAction : public BT::StatefulActionNode
+    {
+    public:
+        using ExecuteTrajectoryAction = manymove_planner::action::ExecuteTrajectory;
+        using GoalHandleExecuteTrajectory = rclcpp_action::ClientGoalHandle<ExecuteTrajectoryAction>;
+
+        /**
+         * @brief Constructor for the StopMotionAction node.
+         * @param name The name of this BT node.
+         * @param config The BT NodeConfiguration (ports, blackboard, etc.).
+         */
+        StopMotionAction(const std::string &name, const BT::NodeConfiguration &config);
+
+        /**
+         * @brief Define the required/optional ports for this node.
+         */
+        static BT::PortsList providedPorts()
+        {
+            return {
+                BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g., 'R_' or 'L_'."),
+                BT::InputPort<double>("deceleration_time", 0.5, "Time in seconds to decelerate to a stop")};
+        }
+
+    protected:
+        /**
+         * @brief Called once when transitioning from IDLE to RUNNING.
+         */
+        BT::NodeStatus onStart() override;
+
+        /**
+         * @brief Called every tick while in RUNNING state.
+         */
+        BT::NodeStatus onRunning() override;
+
+        /**
+         * @brief Called if this node is halted by force.
+         */
+        void onHalted() override;
+
+    private:
+        // Callbacks for action client
+        void goalResponseCallback(std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle);
+        void resultCallback(const GoalHandleExecuteTrajectory::WrappedResult &result);
+
+        // ROS2 members
+        rclcpp::Node::SharedPtr node_;
+        rclcpp_action::Client<ExecuteTrajectoryAction>::SharedPtr stop_client_;
+
+        // Internal state
+        bool stop_goal_sent_;
+        bool stop_result_received_;
+        bool stop_success_;
+
+        // Parameters
+        std::string robot_prefix_;
+        double deceleration_time_;
+    };
+
 } // namespace manymove_cpp_trees
 
 #endif

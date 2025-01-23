@@ -156,15 +156,20 @@ namespace manymove_cpp_trees
     std::string buildResetRobotStateXML(const std::string &node_prefix,
                                         const std::string &robot_prefix = "");
 
-    // ----------------------------------------------------------------------------
-    // Wrappers
-    // ----------------------------------------------------------------------------
+                                        
+    std::string buildStopMotionXML(const std::string &node_prefix,
+                                   const std::string &robot_prefix,
+                                   double deceleration_time);
 
-    /**
-     * @brief Wrap multiple snippets in a <Sequence> with a given name.
-     */
-    std::string sequenceWrapperXML(const std::string &sequence_name,
-                                   const std::vector<std::string> &branches);
+        // ----------------------------------------------------------------------------
+        // Wrappers
+        // ----------------------------------------------------------------------------
+
+        /**
+         * @brief Wrap multiple snippets in a <Sequence> with a given name.
+         */
+        std::string sequenceWrapperXML(const std::string &sequence_name,
+                                       const std::vector<std::string> &branches);
 
     /**
      * @brief Wrap multiple snippets in a <ReactiveSequence> with a given name.
