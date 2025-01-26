@@ -488,11 +488,12 @@ namespace manymove_cpp_trees
     // ResetRobotStateAction
     // ------------------------------------------------------------------
 
-    ResetRobotStateAction::ResetRobotStateAction(const std::string &name,
-                                                 const BT::NodeConfiguration &config)
+    ResetRobotStateAction::ResetRobotStateAction(const std::string &name, const BT::NodeConfiguration &config)
         : BT::StatefulActionNode(name, config),
           goal_sent_(false),
-          result_received_(false)
+          result_received_(false),
+          unload_traj_success_(false),
+          load_traj_success_(false)
     {
         if (!config.blackboard)
         {
@@ -508,17 +509,28 @@ namespace manymove_cpp_trees
         {
             prefix = "";
         }
-        std::string server_name = prefix + "reset_robot_state";
 
-        action_client_ = rclcpp_action::create_client<ResetRobotState>(node_, server_name);
+        // Initialize ResetRobotState action client
+        std::string reset_robot_state_server = prefix + "reset_robot_state";
+        action_client_ = rclcpp_action::create_client<ResetRobotState>(node_, reset_robot_state_server);
+
+        // Initialize UnloadTrajController action client
+        std::string unload_traj_server = prefix + "unload_trajectory_controller";
+        unload_traj_client_ = rclcpp_action::create_client<UnloadTrajController>(node_, unload_traj_server);
+
+        // Initialize LoadTrajController action client
+        std::string load_traj_server = prefix + "load_trajectory_controller";
+        load_traj_client_ = rclcpp_action::create_client<LoadTrajController>(node_, load_traj_server);
 
         RCLCPP_INFO(node_->get_logger(),
-                    "ResetRobotStateAction [%s]: waiting up to 5s for '%s' server...",
-                    name.c_str(), server_name.c_str());
+                    "ResetRobotStateAction [%s]: waiting up to 5s for '%s', '%s', and '%s' servers...",
+                    name.c_str(), reset_robot_state_server.c_str(), unload_traj_server.c_str(), load_traj_server.c_str());
 
-        if (!action_client_->wait_for_action_server(std::chrono::seconds(5)))
+        if (!action_client_->wait_for_action_server(std::chrono::seconds(5)) ||
+            !unload_traj_client_->wait_for_action_server(std::chrono::seconds(5)) ||
+            !load_traj_client_->wait_for_action_server(std::chrono::seconds(5)))
         {
-            throw BT::RuntimeError("'" + server_name + "' server not available.");
+            throw BT::RuntimeError("ResetRobotStateAction: one or more action servers not available.");
         }
     }
 
@@ -528,50 +540,90 @@ namespace manymove_cpp_trees
                     "ResetRobotStateAction [%s]: onStart()",
                     name().c_str());
 
+        // Reset all flags
         goal_sent_ = false;
         result_received_ = false;
-        action_result_ = ResetRobotState::Result();
+        unload_traj_success_ = false;
+        load_traj_success_ = false;
+        unload_goal_sent_ = false;
+        reset_goal_sent_ = false;
+        load_goal_sent_ = false;
 
-        // Build the goal (typically empty)
-        ResetRobotState::Goal goal_msg;
+        // Step 1: Call UnloadTrajController action
+        UnloadTrajController::Goal unload_traj_goal;
+        unload_traj_goal.controller_name = "lite6_traj_controller"; // Replace with your controller name
 
-        // Send
-        auto send_goal_options = rclcpp_action::Client<ResetRobotState>::SendGoalOptions();
-        send_goal_options.goal_response_callback =
-            std::bind(&ResetRobotStateAction::goalResponseCallback, this, std::placeholders::_1);
-        send_goal_options.result_callback =
-            std::bind(&ResetRobotStateAction::resultCallback, this, std::placeholders::_1);
+        auto unload_traj_options = rclcpp_action::Client<UnloadTrajController>::SendGoalOptions();
+        unload_traj_options.goal_response_callback =
+            std::bind(&ResetRobotStateAction::goalResponseCallbackUnloadTraj, this, std::placeholders::_1);
+        unload_traj_options.result_callback =
+            std::bind(&ResetRobotStateAction::resultCallbackUnloadTraj, this, std::placeholders::_1);
 
-        action_client_->async_send_goal(goal_msg, send_goal_options);
-        goal_sent_ = true;
+        unload_traj_client_->async_send_goal(unload_traj_goal, unload_traj_options);
+        unload_goal_sent_ = true; // Mark that the Unload goal has been sent
 
         return BT::NodeStatus::RUNNING;
     }
 
     BT::NodeStatus ResetRobotStateAction::onRunning()
     {
+        // Step 1: Wait for UnloadTrajController to complete
+        if (!unload_traj_success_)
+        {
+            // Still waiting for UnloadTrajController to complete
+            return BT::NodeStatus::RUNNING;
+        }
+
+        // Step 2: Send ResetRobotState goal if not already sent
+        if (!reset_goal_sent_)
+        {
+            ResetRobotState::Goal goal_msg;
+            auto send_goal_options = rclcpp_action::Client<ResetRobotState>::SendGoalOptions();
+            send_goal_options.goal_response_callback =
+                std::bind(&ResetRobotStateAction::goalResponseCallback, this, std::placeholders::_1);
+            send_goal_options.result_callback =
+                std::bind(&ResetRobotStateAction::resultCallback, this, std::placeholders::_1);
+
+            action_client_->async_send_goal(goal_msg, send_goal_options);
+            reset_goal_sent_ = true; // Mark that the Reset goal has been sent
+            return BT::NodeStatus::RUNNING;
+        }
+
+        // Step 3: Wait for ResetRobotState to complete
         if (!result_received_)
         {
-            return BT::NodeStatus::RUNNING; // still waiting
+            return BT::NodeStatus::RUNNING;
         }
 
-        // Output the success flag
-        setOutput("success", action_result_.success);
+        // Step 4: Send LoadTrajController goal if not already sent
+        if (!load_goal_sent_)
+        {
+            LoadTrajController::Goal load_traj_goal;
+            load_traj_goal.controller_name = "lite6_traj_controller";
 
-        if (action_result_.success)
-        {
-            RCLCPP_INFO(node_->get_logger(),
-                        "ResetRobotStateAction [%s]: SUCCESS => %s",
-                        name().c_str(), action_result_.message.c_str());
-            return BT::NodeStatus::SUCCESS;
+            auto load_traj_options = rclcpp_action::Client<LoadTrajController>::SendGoalOptions();
+            load_traj_options.goal_response_callback =
+                std::bind(&ResetRobotStateAction::goalResponseCallbackLoadTraj, this, std::placeholders::_1);
+            load_traj_options.result_callback =
+                std::bind(&ResetRobotStateAction::resultCallbackLoadTraj, this, std::placeholders::_1);
+
+            load_traj_client_->async_send_goal(load_traj_goal, load_traj_options);
+            load_goal_sent_ = true; // Mark that the Load goal has been sent
+            return BT::NodeStatus::RUNNING;
         }
-        else
+
+        // Step 5: Wait for LoadTrajController to complete
+        if (!load_traj_success_)
         {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "ResetRobotStateAction [%s]: FAILURE => %s",
-                         name().c_str(), action_result_.message.c_str());
-            return BT::NodeStatus::FAILURE;
+            return BT::NodeStatus::RUNNING;
         }
+
+        // All actions completed successfully
+        setOutput("success", true);
+        RCLCPP_INFO(node_->get_logger(),
+                    "ResetRobotStateAction [%s]: SUCCESS => Full sequence completed",
+                    name().c_str());
+        return BT::NodeStatus::SUCCESS;
     }
 
     void ResetRobotStateAction::onHalted()
@@ -584,8 +636,19 @@ namespace manymove_cpp_trees
         {
             action_client_->async_cancel_all_goals();
         }
+        if (!unload_traj_success_)
+        {
+            unload_traj_client_->async_cancel_all_goals();
+        }
+        if (!load_traj_success_)
+        {
+            load_traj_client_->async_cancel_all_goals();
+        }
         goal_sent_ = false;
         result_received_ = false;
+        unload_goal_sent_ = false;
+        reset_goal_sent_ = false;
+        load_goal_sent_ = false;
     }
 
     void ResetRobotStateAction::goalResponseCallback(std::shared_ptr<GoalHandleResetRobotState> goal_handle)
@@ -593,7 +656,7 @@ namespace manymove_cpp_trees
         if (!goal_handle)
         {
             RCLCPP_ERROR(node_->get_logger(),
-                         "ResetRobotStateAction [%s]: Goal REJECTED by server.",
+                         "ResetRobotStateAction [%s]: ResetRobotState Goal REJECTED by server.",
                          name().c_str());
             action_result_.success = false;
             result_received_ = true;
@@ -601,7 +664,7 @@ namespace manymove_cpp_trees
         else
         {
             RCLCPP_INFO(node_->get_logger(),
-                        "ResetRobotStateAction [%s]: Goal ACCEPTED by server.",
+                        "ResetRobotStateAction [%s]: ResetRobotState Goal ACCEPTED by server.",
                         name().c_str());
         }
     }
@@ -618,6 +681,64 @@ namespace manymove_cpp_trees
             action_result_.message = "ResetRobotState aborted or failed";
         }
         result_received_ = true;
+    }
+
+    void ResetRobotStateAction::goalResponseCallbackUnloadTraj(std::shared_ptr<GoalHandleUnloadTrajController> goal_handle)
+    {
+        if (!goal_handle)
+        {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "ResetRobotStateAction [%s]: UnloadTrajController Goal REJECTED by server.",
+                         name().c_str());
+            unload_traj_success_ = false;
+        }
+        else
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ResetRobotStateAction [%s]: UnloadTrajController Goal ACCEPTED by server.",
+                        name().c_str());
+        }
+    }
+
+    void ResetRobotStateAction::resultCallbackUnloadTraj(const GoalHandleUnloadTrajController::WrappedResult &wrapped_result)
+    {
+        if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
+        {
+            unload_traj_success_ = wrapped_result.result->success;
+        }
+        else
+        {
+            unload_traj_success_ = false;
+        }
+    }
+
+    void ResetRobotStateAction::goalResponseCallbackLoadTraj(std::shared_ptr<GoalHandleLoadTrajController> goal_handle)
+    {
+        if (!goal_handle)
+        {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "ResetRobotStateAction [%s]: LoadTrajController Goal REJECTED by server.",
+                         name().c_str());
+            load_traj_success_ = false;
+        }
+        else
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ResetRobotStateAction [%s]: LoadTrajController Goal ACCEPTED by server.",
+                        name().c_str());
+        }
+    }
+
+    void ResetRobotStateAction::resultCallbackLoadTraj(const GoalHandleLoadTrajController::WrappedResult &wrapped_result)
+    {
+        if (wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED)
+        {
+            load_traj_success_ = wrapped_result.result->success;
+        }
+        else
+        {
+            load_traj_success_ = false;
+        }
     }
 
     // ---------------------------------------------------------------

@@ -8,19 +8,21 @@
 #include <behaviortree_cpp_v3/action_node.h>
 #include <behaviortree_cpp_v3/condition_node.h>
 
-#include <manymove_planner/action/plan_manipulator.hpp>
-#include <manymove_planner/action/execute_trajectory.hpp>
+#include "manymove_planner/action/plan_manipulator.hpp"
+#include "manymove_planner/action/execute_trajectory.hpp"
 
-#include <manymove_object_manager/action/add_collision_object.hpp>
-#include <manymove_object_manager/action/remove_collision_object.hpp>
-#include <manymove_object_manager/action/attach_detach_object.hpp>
-#include <manymove_object_manager/action/check_object_exists.hpp>
-#include <manymove_object_manager/action/get_object_pose.hpp>
+#include "manymove_object_manager/action/add_collision_object.hpp"
+#include "manymove_object_manager/action/remove_collision_object.hpp"
+#include "manymove_object_manager/action/attach_detach_object.hpp"
+#include "manymove_object_manager/action/check_object_exists.hpp"
+#include "manymove_object_manager/action/get_object_pose.hpp"
 
 #include "manymove_signals/action/set_output.hpp"
 #include "manymove_signals/action/get_input.hpp"
 #include "manymove_signals/action/check_robot_state.hpp"
 #include "manymove_signals/action/reset_robot_state.hpp"
+#include "manymove_planner/action/unload_traj_controller.hpp"
+#include "manymove_planner/action/load_traj_controller.hpp"
 
 #include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <geometry_msgs/msg/pose.hpp>
@@ -174,6 +176,12 @@ namespace manymove_cpp_trees
         using ResetRobotState = manymove_signals::action::ResetRobotState;
         using GoalHandleResetRobotState = rclcpp_action::ClientGoalHandle<ResetRobotState>;
 
+        using UnloadTrajController = manymove_planner::action::UnloadTrajController;
+        using GoalHandleUnloadTrajController = rclcpp_action::ClientGoalHandle<UnloadTrajController>;
+
+        using LoadTrajController = manymove_planner::action::LoadTrajController;
+        using GoalHandleLoadTrajController = rclcpp_action::ClientGoalHandle<LoadTrajController>;
+
         ResetRobotStateAction(const std::string &name,
                               const BT::NodeConfiguration &config);
 
@@ -194,11 +202,25 @@ namespace manymove_cpp_trees
         void goalResponseCallback(std::shared_ptr<GoalHandleResetRobotState> goal_handle);
         void resultCallback(const GoalHandleResetRobotState::WrappedResult &result);
 
+        void goalResponseCallbackUnloadTraj(std::shared_ptr<GoalHandleUnloadTrajController> goal_handle);
+        void resultCallbackUnloadTraj(const GoalHandleUnloadTrajController::WrappedResult &result);
+
+        void goalResponseCallbackLoadTraj(std::shared_ptr<GoalHandleLoadTrajController> goal_handle);
+        void resultCallbackLoadTraj(const GoalHandleLoadTrajController::WrappedResult &result);
+
         rclcpp::Node::SharedPtr node_;
         rclcpp_action::Client<ResetRobotState>::SharedPtr action_client_;
+        rclcpp_action::Client<UnloadTrajController>::SharedPtr unload_traj_client_;
+        rclcpp_action::Client<LoadTrajController>::SharedPtr load_traj_client_;
 
         bool goal_sent_;
         bool result_received_;
+        bool unload_traj_success_;
+        bool load_traj_success_;
+
+        bool unload_goal_sent_;
+        bool reset_goal_sent_;
+        bool load_goal_sent_;
 
         ResetRobotState::Result action_result_;
     };
