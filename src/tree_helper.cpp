@@ -351,7 +351,8 @@ namespace manymove_cpp_trees
     }
 
     std::string buildResetRobotStateXML(const std::string &node_prefix,
-                                        const std::string &robot_prefix)
+                                        const std::string &robot_prefix,
+                                        const std::string &robot_model)
     {
         // Construct a node name
         std::string node_name = node_prefix + "_ResetRobotState";
@@ -359,7 +360,8 @@ namespace manymove_cpp_trees
         std::ostringstream xml;
         xml << "<ResetRobotStateAction "
             << "name=\"" << node_name << "\""
-            << "robot_prefix=\"" << robot_prefix << "\" ";
+            << "robot_prefix=\"" << robot_prefix << "\" "
+            << "robot_model=\"" << robot_model << "\" ";
 
         // Output
         xml << " success=\"{" << "robot_state_success" << "}\"";

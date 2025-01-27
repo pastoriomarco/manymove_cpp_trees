@@ -189,6 +189,7 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
+                BT::InputPort<std::string>("robot_model", "Name of the robot model, e.g. 'lite6'."),
                 BT::OutputPort<bool>("success", "True if robot reset is successful"),
             };
         }
@@ -221,6 +222,8 @@ namespace manymove_cpp_trees
         bool unload_goal_sent_;
         bool reset_goal_sent_;
         bool load_goal_sent_;
+
+        std::string computed_controller_name_;
 
         ResetRobotState::Result action_result_;
     };

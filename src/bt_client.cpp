@@ -29,15 +29,19 @@ int main(int argc, char **argv)
     auto node = rclcpp::Node::make_shared("bt_client_node");
     RCLCPP_INFO(node->get_logger(), "BT Client Node started (Purely Programmatic XML).");
 
-    // This parameter is to be set true if we are connected to a real robot that exposes the necessary services for manymove_signals
-    bool is_robot_real;
-    node->declare_parameter<bool>("is_robot_real", false);
-    node->get_parameter_or<bool>("is_robot_real", is_robot_real, false);
+    std::string robot_model;
+    node->declare_parameter<std::string>("robot_model", "lite6");
+    node->get_parameter_or<std::string>("robot_model", robot_model, "");
 
     // This parameter indicates the prefix to apply to the robot's action servers
     std::string robot_prefix;
     node->declare_parameter<std::string>("robot_prefix", "");
     node->get_parameter_or<std::string>("robot_prefix", robot_prefix, "");
+
+    // This parameter is to be set true if we are connected to a real robot that exposes the necessary services for manymove_signals
+    bool is_robot_real;
+    node->declare_parameter<bool>("is_robot_real", false);
+    node->get_parameter_or<bool>("is_robot_real", is_robot_real, false);
 
     // ----------------------------------------------------------------------------
     // 1) Create a blackboard and set "node"
@@ -267,7 +271,7 @@ int main(int argc, char **argv)
     std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
     std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
     std::string check_robot_state_xml = buildCheckRobotStateXML("CheckRobot", robot_prefix, "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
-    std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot", robot_prefix);
+    std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot", robot_prefix, robot_model);
 
     std::string check_reset_robot_xml = (is_robot_real ? fallbackWrapperXML(robot_prefix + "CheckResetFallback", {check_robot_state_xml, reset_robot_state_xml}) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
 

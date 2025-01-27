@@ -510,6 +510,18 @@ namespace manymove_cpp_trees
             prefix = "";
         }
 
+        std::string model;
+        if (!getInput<std::string>("robot_model", model))
+        {
+            model = ""; 
+        }
+
+        computed_controller_name_ = prefix + model + "_traj_controller";
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "ResetRobotStateAction [%s]: Using controller '%s'.",
+                    name.c_str(), computed_controller_name_.c_str());
+
         // Initialize ResetRobotState action client
         std::string reset_robot_state_server = prefix + "reset_robot_state";
         action_client_ = rclcpp_action::create_client<ResetRobotState>(node_, reset_robot_state_server);
@@ -551,7 +563,7 @@ namespace manymove_cpp_trees
 
         // Step 1: Call UnloadTrajController action
         UnloadTrajController::Goal unload_traj_goal;
-        unload_traj_goal.controller_name = "lite6_traj_controller"; // Replace with your controller name
+        unload_traj_goal.controller_name = computed_controller_name_;
 
         auto unload_traj_options = rclcpp_action::Client<UnloadTrajController>::SendGoalOptions();
         unload_traj_options.goal_response_callback =
@@ -599,7 +611,7 @@ namespace manymove_cpp_trees
         if (!load_goal_sent_)
         {
             LoadTrajController::Goal load_traj_goal;
-            load_traj_goal.controller_name = "lite6_traj_controller";
+            load_traj_goal.controller_name = computed_controller_name_;
 
             auto load_traj_options = rclcpp_action::Client<LoadTrajController>::SendGoalOptions();
             load_traj_options.goal_response_callback =

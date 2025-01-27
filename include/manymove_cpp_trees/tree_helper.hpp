@@ -154,7 +154,8 @@ namespace manymove_cpp_trees
      * @return A string of the XML snippet.
      */
     std::string buildResetRobotStateXML(const std::string &node_prefix,
-                                        const std::string &robot_prefix = "");
+                                        const std::string &robot_prefix = "",
+                                        const std::string &robot_model = "");
 
                                         
     std::string buildStopMotionXML(const std::string &node_prefix,
