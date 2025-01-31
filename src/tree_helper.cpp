@@ -59,7 +59,7 @@ namespace manymove_cpp_trees
 
             planning_seq << partial_planning_seq.str();
 
-            execution_seq << " <Retry name=\"StopSafe_Repeat\" num_attempts=\"-1\">\n"
+            execution_seq << " <RetryNode name=\"StopSafe_Repeat\" num_attempts=\"-1\">\n"
                           << " <Fallback>\n"
                           << "      <ExecuteTrajectory"
                           << " name=\"ExecMove_" << this_move_id << "\""
@@ -68,11 +68,11 @@ namespace manymove_cpp_trees
                           << " trajectory=\"{trajectory_" << this_move_id << "}\""
                           << " planning_validity=\"{validity_" << this_move_id << "}\""
                           << "/>\n"
-                          << "<ForceFailure>"
+                          << " <ForceFailure>"
                           << partial_planning_seq.str()
-                          << "</ForceFailure>"
-                          << "\n</Fallback>"
-                          << "  </Retry>\n";
+                          << " </ForceFailure>"
+                          << " \n</Fallback>"
+                          << " </RetryNode>\n";
 
             // increment the global ID for the next move
             g_global_move_id++;

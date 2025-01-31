@@ -280,26 +280,29 @@ int main(int argc, char **argv)
     // 6) Combine the objects and moves in a sequences that can run a number of times:
     // ----------------------------------------------------------------------------
 
-    // Let's build the full sequence in locically separated blocks:
-    std::string spawn_objects_xml = sequenceWrapperXML("SpawnObjects", {init_ground_obj_xml, init_wall_obj_xml, init_cylinder_obj_xml, init_mesh_obj_xml});
+    // Let's build the full sequence in logically separated blocks:
+    std::string spawn_fixed_objects_xml = sequenceWrapperXML("SpawnFixedObjects", {init_ground_obj_xml, init_wall_obj_xml});
+    std::string spawn_graspable_objects_xml = sequenceWrapperXML("SpawnGraspableObjects", {init_cylinder_obj_xml, init_mesh_obj_xml});
     std::string get_grasp_object_poses_xml = sequenceWrapperXML("GetGraspPoses", {get_pick_pose_xml, get_approach_pose_xml});
-    std::string go_to_pick_pose_xml = sequenceWrapperXML("GoToPickPose", {prep_sequence_xml, pick_sequence_xml});
+    std::string go_to_pick_pose_xml = sequenceWrapperXML("GoToPickPose", {pick_sequence_xml});
     std::string close_gripper_xml = sequenceWrapperXML("CloseGripper", {signal_gripper_close_xml, check_gripper_close_xml, attach_obj_xml});
     std::string open_gripper_xml = sequenceWrapperXML("OpenGripper", {signal_gripper_open_xml, detach_obj_xml});
+
+    std::string startup_sequence_xml = sequenceWrapperXML("StartUpSequence", {check_reset_robot_xml, spawn_fixed_objects_xml, prep_sequence_xml});
 
     // Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
         "RepeatForever",
-        {check_reset_robot_xml,      //< We check if the robot is active, if not we try to reset it
-         spawn_objects_xml,          //< We add all the objects to the scene
-         get_grasp_object_poses_xml, //< We get the updated poses relative to the objects
-         go_to_pick_pose_xml,        //< Prep sequence and pick sequence
-         close_gripper_xml,          //< We attach the object
-         drop_sequence_xml,          //< Drop sequence
-         open_gripper_xml,           //< We detach the object
-         home_sequence_xml,          //< Homing sequence
-         remove_obj_xml},            //< We delete the object for it to be added on the next cycle in the original position
-        -1);                         //< num_cycles=-1 for infinite
+        {check_reset_robot_xml,       //< We check if the robot is active, if not we try to reset it
+         spawn_graspable_objects_xml, //< We add all the objects to the scene
+         get_grasp_object_poses_xml,  //< We get the updated poses relative to the objects
+         go_to_pick_pose_xml,         //< Prep sequence and pick sequence
+         close_gripper_xml,           //< We attach the object
+         drop_sequence_xml,           //< Drop sequence
+         open_gripper_xml,            //< We detach the object
+         home_sequence_xml,           //< Homing sequence
+         remove_obj_xml},             //< We delete the object for it to be added on the next cycle in the original position
+        -1);                          //< num_cycles=-1 for infinite
 
     // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
     //    => Repeat node must have only one children, so it also wrap a Sequence child that wraps the other childs
@@ -307,7 +310,7 @@ int main(int argc, char **argv)
     //     "RepeatForever", {object_then_moves_xml}, -1); // num_cycles=-1 for infinite
 
     //    => MasterSequence with RepeatForever as child to set BehaviorTree ID and root main_tree_to_execute in the XML
-    std::vector<std::string> master_branches_xml = {repeat_forever_wrapper_xml};
+    std::vector<std::string> master_branches_xml = {startup_sequence_xml, repeat_forever_wrapper_xml};
     std::string master_body = sequenceWrapperXML("GlobalMasterSequence", master_branches_xml);
 
     // ----------------------------------------------------------------------------
@@ -337,7 +340,7 @@ int main(int argc, char **argv)
     factory.registerNodeType<StopMotionAction>("StopMotionAction");
 
     factory.registerNodeType<CheckBlackboardValue>("CheckBlackboardValue");
-    factory.registerNodeType<BT::RetryNode>("Retry");
+    factory.registerNodeType<BT::RetryNode>("RetryNode");
 
     // 9) Create the tree from final_tree_xml
     BT::Tree tree;
