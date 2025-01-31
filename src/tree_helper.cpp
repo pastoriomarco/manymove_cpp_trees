@@ -30,6 +30,10 @@ namespace manymove_cpp_trees
         std::ostringstream planning_seq;
         planning_seq << "    <Sequence name=\"PlanningSequence_" << node_prefix << "_" << blockStartID << "\">\n";
 
+        // Execution Sequence
+        std::ostringstream execution_seq;
+        execution_seq << "    <Sequence name=\"ExecutionSequence_" << node_prefix << "_" << blockStartID << "\">\n";
+
         for (const auto &move : moves)
         {
             int this_move_id = g_global_move_id; // unique ID for this move
@@ -41,15 +45,34 @@ namespace manymove_cpp_trees
             RCLCPP_INFO(rclcpp::get_logger("bt_client_node"),
                         "BB set: %s", key.c_str());
 
-            planning_seq << "      <PlanningAction"
-                         << " name=\"PlanMove_" << this_move_id << "\""
-                         << " move_id=\"" << this_move_id << "\""
-                         << " robot_prefix=\"" << robot_prefix << "\""
-                         << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
-                         << " trajectory=\"{trajectory_" << this_move_id << "}\""
-                         << " planning_validity=\"{validity_" << this_move_id << "}\""
-                         << " pose_key=\"" << move.pose_key << "\""
-                         << "/>\n";
+            std::ostringstream partial_planning_seq;
+
+            partial_planning_seq << "      <PlanningAction"
+                                 << " name=\"PlanMove_" << this_move_id << "\""
+                                 << " move_id=\"" << this_move_id << "\""
+                                 << " robot_prefix=\"" << robot_prefix << "\""
+                                 << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
+                                 << " trajectory=\"{trajectory_" << this_move_id << "}\""
+                                 << " planning_validity=\"{validity_" << this_move_id << "}\""
+                                 << " pose_key=\"" << move.pose_key << "\""
+                                 << "/>\n";
+
+            planning_seq << partial_planning_seq.str();
+
+            execution_seq << " <Retry name=\"StopSafe_Repeat\" num_attempts=\"-1\">\n"
+                          << " <Fallback>\n"
+                          << "      <ExecuteTrajectory"
+                          << " name=\"ExecMove_" << this_move_id << "\""
+                          << " robot_prefix=\"" << robot_prefix << "\""
+                          << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
+                          << " trajectory=\"{trajectory_" << this_move_id << "}\""
+                          << " planning_validity=\"{validity_" << this_move_id << "}\""
+                          << "/>\n"
+                          << "<ForceFailure>"
+                          << partial_planning_seq.str()
+                          << "</ForceFailure>"
+                          << "\n</Fallback>"
+                          << "  </Retry>\n";
 
             // increment the global ID for the next move
             g_global_move_id++;
@@ -57,30 +80,31 @@ namespace manymove_cpp_trees
 
         planning_seq << "    </Sequence>\n";
 
-        // Execution Sequence
-        std::ostringstream execution_seq;
-        execution_seq << "    <Sequence name=\"ExecutionSequence_" << node_prefix << "_" << blockStartID << "\">\n";
+        // for (int mid : move_ids)
+        // {
 
-        for (int mid : move_ids)
-        {
-            execution_seq << "      <ExecuteTrajectory"
-                          << " name=\"ExecMove_" << mid << "\""
-                          << " robot_prefix=\"" << robot_prefix << "\""
-                          << " planned_move_id=\"{planned_move_id_" << mid << "}\""
-                          << " trajectory=\"{trajectory_" << mid << "}\""
-                          << " planning_validity=\"{validity_" << mid << "}\""
-                          << "/>\n";
-        }
+        //     execution_seq << " <Fallback>\n"
+        //                   << "      <ExecuteTrajectory"
+        //                   << " name=\"ExecMove_" << mid << "\""
+        //                   << " robot_prefix=\"" << robot_prefix << "\""
+        //                   << " planned_move_id=\"{planned_move_id_" << mid << "}\""
+        //                   << " trajectory=\"{trajectory_" << mid << "}\""
+        //                   << " planning_validity=\"{validity_" << mid << "}\""
+        //                   << "/>\n"
+        //                   << planning_seq.str()
+        //                   << "\n</Fallback>";
+        // }
 
         execution_seq << "    </Sequence>\n";
 
         // Parallel node
         std::ostringstream parallel_node;
-        parallel_node << "  <Parallel name=\"ParallelPlanExecute_" << node_prefix << "_" << blockStartID
-                      << "\" success_threshold=\"2\" failure_threshold=\"1\">\n"
-                      << planning_seq.str()
-                      << execution_seq.str()
-                      << "  </Parallel>\n";
+        parallel_node
+            << "  <Parallel name=\"ParallelPlanExecute_" << node_prefix << "_" << blockStartID
+            << "\" success_threshold=\"2\" failure_threshold=\"1\">\n"
+            << planning_seq.str()
+            << execution_seq.str()
+            << "  </Parallel>\n";
 
         if (reset_trajs)
         { // ResetTrajectories node
@@ -250,7 +274,7 @@ namespace manymove_cpp_trees
         int value_to_check = (value == 0 ? 0 : 1);
 
         // Build GetInputAction
-        std::string check_condition_xml = buildGetInputXML(node_name, io_type, ionum, robot_prefix);
+        std::string check_input_xml = buildGetInputXML(node_name, io_type, ionum, robot_prefix);
 
         // Build the CheckBlackboardValue node
         std::ostringstream inner_xml;
@@ -260,7 +284,7 @@ namespace manymove_cpp_trees
 
         // Wrap in a Sequence
         std::ostringstream sequence_xml;
-        sequence_xml << sequenceWrapperXML(node_name + "_Sequence", {check_condition_xml, inner_xml.str()});
+        sequence_xml << sequenceWrapperXML(node_name + "_Sequence", {check_input_xml, inner_xml.str()});
 
         if (wait)
         {

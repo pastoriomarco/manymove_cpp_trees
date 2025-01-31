@@ -2,6 +2,7 @@
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
+#include <behaviortree_cpp_v3/decorators/force_failure_node.h>
 
 #include "manymove_cpp_trees/action_nodes_objects.hpp"
 #include "manymove_cpp_trees/action_nodes_planner.hpp"
@@ -221,18 +222,18 @@ int main(int argc, char **argv)
     std::string init_cylinder_obj_xml = fallbackWrapperXML("init_cylinder_obj", {check_cylinder_obj_xml, add_cylinder_obj_xml});
     std::string init_mesh_obj_xml = fallbackWrapperXML("init_mesh_obj", {check_mesh_obj_xml, add_mesh_obj_xml});
 
-    // the name of the link to attach the object to
+    // the name of the link to attach the object to, and the object to manipulate
     std::string link_name = robot_prefix + "link_tcp";
+    std::string object_to_manipulate = "graspable_mesh";
 
-    std::string attach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createAttachObject("graspable_mesh", link_name));
-    std::string detach_mesh_obj_xml = buildObjectActionXML("attach_mesh", createDetachObject("graspable_mesh", link_name));
-    std::string remove_mesh_obj_xml = buildObjectActionXML("remove_mesh", createRemoveObject("graspable_mesh"));
+    std::string attach_obj_xml = buildObjectActionXML("attach_obj_to_manipulate", createAttachObject(object_to_manipulate, link_name));
+    std::string detach_obj_xml = buildObjectActionXML("attach_obj_to_manipulate", createDetachObject(object_to_manipulate, link_name));
+    std::string remove_obj_xml = buildObjectActionXML("remove_obj_to_manipulate", createRemoveObject(object_to_manipulate));
 
     // ----------------------------------------------------------------------------
     // 4) Add GetObjectPoseAction Node and nodes to attach/detach objects
     // ----------------------------------------------------------------------------
     // Define the object ID and pose_key where the pose will be stored
-    std::string object_id_for_pose = "graspable_mesh"; // Example object ID
     std::string pick_pose_key = "pick_target";
     std::string approach_pose_key = "approach_pick_target";
 
@@ -249,13 +250,13 @@ int main(int argc, char **argv)
     // Translate get_pose_action to xml tree leaf
     std::string get_pick_pose_xml = buildObjectActionXML(
         "get_pick_pose", createGetObjectPose(
-                             object_id_for_pose,
+                             object_to_manipulate,
                              pick_pose_key,
                              pick_pre_transform_xyz_rpy,
                              post_transform_xyz_rpy));
     std::string get_approach_pose_xml = buildObjectActionXML(
         "get_approach_pose", createGetObjectPose(
-                                 object_id_for_pose,
+                                 object_to_manipulate,
                                  approach_pose_key,
                                  approach_pre_transform_xyz_rpy,
                                  post_transform_xyz_rpy));
@@ -264,16 +265,16 @@ int main(int argc, char **argv)
     // 5) Define Signals calls:
     // ----------------------------------------------------------------------------
 
-    // Let's send and receive signals only if the robot is real, and let's fake a 250ms on inputs otherwise
+    // Let's send and receive signals only if the robot is real, and let's fake a delay on inputs otherwise
 
     std::string signal_gripper_close_xml = (is_robot_real ? buildSetOutputXML("GripperClose", "controller", 0, 1, robot_prefix) : "");
     std::string signal_gripper_open_xml = (is_robot_real ? buildSetOutputXML("GripperOpen", "controller", 0, 0, robot_prefix) : "");
-    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
-    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, robot_prefix, true, 0) : "<Delay delay_msec=\"250\">\n  <AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_close_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 1, robot_prefix, true, 0) : "<Delay delay_msec=\"500\">\n<AlwaysSuccess />\n</Delay>\n");
+    std::string check_gripper_open_xml = (is_robot_real ? buildCheckInputXML("WaitForSensor", "controller", 0, 0, robot_prefix, true, 0) : "<Delay delay_msec=\"500\">\n  <AlwaysSuccess />\n</Delay>\n");
     std::string check_robot_state_xml = buildCheckRobotStateXML("CheckRobot", robot_prefix, "robot_ready", "error_code", "robot_mode", "robot_state", "robot_msg");
     std::string reset_robot_state_xml = buildResetRobotStateXML("ResetRobot", robot_prefix, robot_model);
 
-    std::string check_reset_robot_xml = (is_robot_real ? fallbackWrapperXML(robot_prefix + "CheckResetFallback", {check_robot_state_xml, reset_robot_state_xml}) : "<Delay delay_msec=\"250\">\n<AlwaysSuccess />\n</Delay>\n");
+    std::string check_reset_robot_xml = (is_robot_real ? fallbackWrapperXML(robot_prefix + "CheckResetFallback", {check_robot_state_xml, reset_robot_state_xml}) : "<Delay delay_msec=\"500\">\n<AlwaysSuccess />\n</Delay>\n");
 
     // ----------------------------------------------------------------------------
     // 6) Combine the objects and moves in a sequences that can run a number of times:
@@ -283,8 +284,8 @@ int main(int argc, char **argv)
     std::string spawn_objects_xml = sequenceWrapperXML("SpawnObjects", {init_ground_obj_xml, init_wall_obj_xml, init_cylinder_obj_xml, init_mesh_obj_xml});
     std::string get_grasp_object_poses_xml = sequenceWrapperXML("GetGraspPoses", {get_pick_pose_xml, get_approach_pose_xml});
     std::string go_to_pick_pose_xml = sequenceWrapperXML("GoToPickPose", {prep_sequence_xml, pick_sequence_xml});
-    std::string close_gripper_xml = sequenceWrapperXML("CloseGripper", {signal_gripper_close_xml, check_gripper_close_xml, attach_mesh_obj_xml});
-    std::string open_gripper_xml = sequenceWrapperXML("OpenGripper", {signal_gripper_open_xml, detach_mesh_obj_xml});
+    std::string close_gripper_xml = sequenceWrapperXML("CloseGripper", {signal_gripper_close_xml, check_gripper_close_xml, attach_obj_xml});
+    std::string open_gripper_xml = sequenceWrapperXML("OpenGripper", {signal_gripper_open_xml, detach_obj_xml});
 
     // Repeat node must have only one children, so it also wrap a Sequence child that wraps the other children
     std::string repeat_forever_wrapper_xml = repeatWrapperXML(
@@ -297,7 +298,7 @@ int main(int argc, char **argv)
          drop_sequence_xml,          //< Drop sequence
          open_gripper_xml,           //< We detach the object
          home_sequence_xml,          //< Homing sequence
-         remove_mesh_obj_xml},       //< We delete the object for it to be added on the next cycle in the original position
+         remove_obj_xml},            //< We delete the object for it to be added on the next cycle in the original position
         -1);                         //< num_cycles=-1 for infinite
 
     // Combine prep_sequence_xml and pick_sequence_xml in a <Repeat> node single <Sequence>
@@ -336,6 +337,7 @@ int main(int argc, char **argv)
     factory.registerNodeType<StopMotionAction>("StopMotionAction");
 
     factory.registerNodeType<CheckBlackboardValue>("CheckBlackboardValue");
+    factory.registerNodeType<BT::RetryNode>("Retry");
 
     // 9) Create the tree from final_tree_xml
     BT::Tree tree;
@@ -353,7 +355,7 @@ int main(int argc, char **argv)
     BT::PublisherZMQ publisher(tree);
 
     // 11) Tick the tree
-    rclcpp::Rate rate(1000);
+    rclcpp::Rate rate(100);
     while (rclcpp::ok())
     {
         rclcpp::spin_some(node);
