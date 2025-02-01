@@ -362,20 +362,55 @@ namespace manymove_cpp_trees
 
     BT::NodeStatus ExecuteTrajectory::onRunning()
     {
-        // If we haven't determined data is ready, poll
+        // Check if execution_resumed is true getting the blackboard key value.
+        bool execution_resumed = false;
+        config().blackboard->get("execution_resumed", execution_resumed);
+
+        if (execution_resumed)
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: execution_resumed is true.", name().c_str());
+
+            // If we already sent a goal and are waiting for a result, cancel the goal immediately.
+            if (goal_sent_ && !result_received_)
+            {
+                RCLCPP_INFO(node_->get_logger(),
+                            "ExecuteTrajectory [%s]: Cancelling current goal due to execution_resumed.", name().c_str());
+                action_client_->async_cancel_all_goals();
+            }
+
+            // Optional: wait a fixed time (if desired, to check if needed)
+            // std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+            // Invalidate the trajectory: set the planning validity key to false and clear the trajectory.
+            std::string validity_key = "validity_" + move_id_;
+            config().blackboard->set(validity_key, false);
+
+            std::string trajectory_key = "trajectory_" + move_id_;
+            moveit_msgs::msg::RobotTrajectory empty_traj;
+            config().blackboard->set(trajectory_key, empty_traj);
+
+            // Clear the execution_resumed key so that it does not keep triggering.
+            config().blackboard->set("execution_resumed", false);
+
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: Forcing failure due to execution_resumed; key cleared.",
+                        name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Normal polling for plan data.
         if (!is_data_ready_)
         {
             if (!dataReady())
             {
-                // not ready -> keep polling
                 auto elapsed = std::chrono::steady_clock::now() - wait_start_time_;
                 int max_time = 64;
                 if (elapsed > std::chrono::seconds(max_time))
                 {
                     RCLCPP_ERROR(node_->get_logger(),
                                  "ExecuteTrajectory [%s]: Timed out (%is) waiting for plan data.",
-                                 name().c_str(),
-                                 max_time);
+                                 name().c_str(), max_time);
                     return BT::NodeStatus::FAILURE;
                 }
                 else
@@ -388,17 +423,15 @@ namespace manymove_cpp_trees
             }
             else
             {
-                // data is ready => send goal
                 sendGoal();
                 is_data_ready_ = true;
                 return BT::NodeStatus::RUNNING;
             }
         }
 
-        // If the goal was sent, check if we have the result
         if (result_received_)
         {
-            // Invalidate trajectory after execution, regardless of result
+            // Invalidate the trajectory after execution, regardless of the result.
             setOutput("trajectory", moveit_msgs::msg::RobotTrajectory());
             setOutput("planning_validity", false);
 
@@ -418,7 +451,7 @@ namespace manymove_cpp_trees
             }
         }
 
-        return BT::NodeStatus::RUNNING; // still waiting for final result
+        return BT::NodeStatus::RUNNING; // Still waiting for final result.
     }
 
     void ExecuteTrajectory::onHalted()

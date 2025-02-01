@@ -7,10 +7,12 @@
 #include "manymove_cpp_trees/action_nodes_objects.hpp"
 #include "manymove_cpp_trees/action_nodes_planner.hpp"
 #include "manymove_cpp_trees/action_nodes_signals.hpp"
+#include "manymove_cpp_trees/action_nodes_logic.hpp"
 #include "manymove_cpp_trees/move.hpp"
 #include "manymove_cpp_trees/object.hpp"
 #include "manymove_cpp_trees/tree_helper.hpp"
 #include "manymove_cpp_trees/bt_converters.hpp"
+#include "manymove_cpp_trees/hmi_service_node.hpp"
 
 #include "manymove_signals/action/set_output.hpp"
 #include "manymove_signals/action/get_input.hpp"
@@ -50,6 +52,15 @@ int main(int argc, char **argv)
     auto blackboard = BT::Blackboard::create();
     blackboard->set("node", node);
     RCLCPP_INFO(node->get_logger(), "Blackboard: set('node', <rclcpp::Node>)");
+
+    // Setting blackboard keys to control execution:
+    blackboard->set("stop_execution", false);
+    blackboard->set("execution_resumed", false);
+    blackboard->set("abort_mission", false);
+
+    // Create the HMI Service Node and pass the same blackboard ***
+    auto hmi_node = std::make_shared<manymove_cpp_trees::HMIServiceNode>("hmi_service_node", blackboard);
+    RCLCPP_INFO(node->get_logger(), "HMI Service Node instantiated.");
 
     // ----------------------------------------------------------------------------
     // 2) Setup moves
@@ -341,6 +352,7 @@ int main(int argc, char **argv)
 
     factory.registerNodeType<CheckBlackboardValue>("CheckBlackboardValue");
     factory.registerNodeType<BT::RetryNode>("RetryNode");
+    factory.registerNodeType<RetryPauseAbortNode>("RetryPauseAbortNode");
 
     // 9) Create the tree from final_tree_xml
     BT::Tree tree;
@@ -357,11 +369,16 @@ int main(int argc, char **argv)
     // 10) ZMQ publisher (optional, to visualize in Groot)
     BT::PublisherZMQ publisher(tree);
 
-    // 11) Tick the tree
+    // Create a MultiThreadedExecutor so that both nodes can be spun concurrently.
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(node);
+    executor.add_node(hmi_node);
+
+    // 11) Tick the tree in a loop.
     rclcpp::Rate rate(100);
     while (rclcpp::ok())
     {
-        rclcpp::spin_some(node);
+        executor.spin_some();
         BT::NodeStatus status = tree.tickRoot();
 
         if (status == BT::NodeStatus::SUCCESS)
