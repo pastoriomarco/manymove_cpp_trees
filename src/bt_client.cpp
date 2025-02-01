@@ -53,10 +53,15 @@ int main(int argc, char **argv)
     blackboard->set("node", node);
     RCLCPP_INFO(node->get_logger(), "Blackboard: set('node', <rclcpp::Node>)");
 
+    /**
+     * The following keys are important for the execution control logic: they are modified through
+     * the HMI services and let you pause/stop, resume or abort/reset execution.
+     */
     // Setting blackboard keys to control execution:
     blackboard->set("stop_execution", false);
     blackboard->set("execution_resumed", false);
     blackboard->set("abort_mission", false);
+    RCLCPP_INFO(node->get_logger(), "Blackboard: created execution control keys");
 
     // Create the HMI Service Node and pass the same blackboard ***
     auto hmi_node = std::make_shared<manymove_cpp_trees::HMIServiceNode>("hmi_service_node", blackboard);
