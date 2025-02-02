@@ -4,16 +4,15 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/empty.hpp>
 #include <behaviortree_cpp_v3/blackboard.h>
+#include <std_msgs/msg/string.hpp> 
 
 namespace manymove_cpp_trees
 {
     /**
-     * @brief A simple node that provides three services to modify BT blackboard keys.
+     * @brief A node that provides HMI services and publishes the status of key blackboard values.
      *
-     * The services are:
-     *   - start_execution: sets "stop_execution" to false.
-     *   - stop_execution: sets "stop_execution" to true.
-     *   - reset_program: sets both "stop_execution" and "abort_mission" to true.
+     * It provides three services (start_execution, stop_execution, reset_program) and publishes every 250ms
+     * the status of "execution_resumed", "stop_execution", and "abort_mission".
      */
     class HMIServiceNode : public rclcpp::Node
     {
@@ -28,6 +27,12 @@ namespace manymove_cpp_trees
         rclcpp::Service<std_srvs::srv::Empty>::SharedPtr stop_execution_srv_;
         rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reset_program_srv_;
 
+        // Publisher for blackboard status
+        rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+
+        // Timer to publish status every 250ms
+        rclcpp::TimerBase::SharedPtr status_timer_;
+
         // Service callbacks
         void handle_start_execution(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
                                     std::shared_ptr<std_srvs::srv::Empty::Response> response);
@@ -37,6 +42,9 @@ namespace manymove_cpp_trees
 
         void handle_reset_program(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
                                   std::shared_ptr<std_srvs::srv::Empty::Response> response);
+
+        // Timer callback: publishes the status of certain blackboard keys.
+        void publishBlackboardStatus();
     };
 }
 
