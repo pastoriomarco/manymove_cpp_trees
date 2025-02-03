@@ -202,7 +202,7 @@ int main(int argc, char **argv)
     std::string drop_sequence_xml = sequenceWrapperXML(
         robot_prefix + "ComposedDropSequence", {drop_object_xml});
     std::string home_sequence_xml = sequenceWrapperXML(
-        robot_prefix + "ComposedHomeSequence", {to_home_xml});
+        robot_prefix + "ComposedHomeSequence", {to_home_xml, to_rest_xml});
 
     // ----------------------------------------------------------------------------
     // 3) Build blocks for objects handling

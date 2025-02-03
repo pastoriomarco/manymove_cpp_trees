@@ -585,6 +585,9 @@ namespace manymove_cpp_trees
         opts.result_callback =
             std::bind(&ExecuteTrajectory::resultCallback, this, std::placeholders::_1);
 
+        opts.feedback_callback =
+            std::bind(&ExecuteTrajectory::feedbackCallback, this, std::placeholders::_1, std::placeholders::_2);
+
         action_client_->async_send_goal(goal_msg, opts);
         goal_sent_ = true;
     }
@@ -638,6 +641,26 @@ namespace manymove_cpp_trees
             fail.message = "Execution failed.";
             action_result_ = fail;
             result_received_ = true;
+        }
+    }
+
+    void ExecuteTrajectory::feedbackCallback(
+        std::shared_ptr<GoalHandleExecuteTrajectory> /*goal_handle*/,
+        const std::shared_ptr<const ExecuteTrajectoryAction::Feedback> feedback)
+    {
+        RCLCPP_DEBUG(node_->get_logger(),
+                     "ExecuteTrajectory [%s]: Received feedback: progress = %f, in_collision = %s",
+                     name().c_str(),
+                     feedback->progress,
+                     feedback->in_collsion ? "true" : "false");
+
+        // If the feedback indicates a collision, set the blackboard key "stop_execution" to true.
+        if (feedback->in_collsion)
+        {
+            config().blackboard->set("stop_execution", true);
+            RCLCPP_INFO(node_->get_logger(),
+                        "ExecuteTrajectory [%s]: Collision detected. Setting 'stop_execution' to true on blackboard.",
+                        name().c_str());
         }
     }
 

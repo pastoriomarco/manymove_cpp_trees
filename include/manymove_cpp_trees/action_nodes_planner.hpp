@@ -143,6 +143,9 @@ namespace manymove_cpp_trees
         // Callbacks
         void goalResponseCallback(std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle);
         void resultCallback(const GoalHandleExecuteTrajectory::WrappedResult &result);
+        void feedbackCallback(
+            std::shared_ptr<GoalHandleExecuteTrajectory> /*goal_handle*/,
+            const std::shared_ptr<const ExecuteTrajectoryAction::Feedback> feedback);
 
         rclcpp::Node::SharedPtr node_;
         rclcpp_action::Client<ExecuteTrajectoryAction>::SharedPtr action_client_;
