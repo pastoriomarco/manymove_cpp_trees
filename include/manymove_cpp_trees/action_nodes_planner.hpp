@@ -126,6 +126,7 @@ namespace manymove_cpp_trees
                 BT::InputPort<moveit_msgs::msg::RobotTrajectory>("trajectory", "Planned trajectory"),
                 BT::InputPort<std::string>("planned_move_id", "Echoes move_id for validation"),
                 BT::InputPort<bool>("planning_validity", "Indicates if planning was successful"),
+                BT::InputPort<bool>("collision_detected", "If a collision is detected, the execution fails"),
                 BT::InputPort<std::string>("robot_prefix", "Optional robot namespace prefix, e.g. 'R_' or 'L_'."),
             };
         }

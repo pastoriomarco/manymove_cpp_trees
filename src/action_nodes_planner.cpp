@@ -210,7 +210,11 @@ namespace manymove_cpp_trees
             }
             else
             {
+                // --- PLANNING FAILED ---
                 setOutput("planning_validity", false);
+                // --- STOPPING EXECUTION ---
+                config().blackboard->set("stop_execution", true);
+
                 RCLCPP_ERROR(node_->get_logger(),
                              "PlanningAction [%s]: FAIL => planning_validity=false",
                              name().c_str());
@@ -351,6 +355,22 @@ namespace manymove_cpp_trees
         action_result_ = ExecuteTrajectoryAction::Result();
         is_data_ready_ = false;
 
+        bool collision_detected;
+        if (!getInput<bool>("collision_detected", collision_detected))
+        {
+            RCLCPP_DEBUG(node_->get_logger(),
+                         "ExecuteTrajectory [%s]: 'collision_detected' not set => failing",
+                         name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+        if (collision_detected)
+        {
+            // reset the collision_detected value
+            config().blackboard->set("collision_detected", false);
+
+            return BT::NodeStatus::FAILURE;
+        }
+
         // Start polling
         wait_start_time_ = std::chrono::steady_clock::now();
         RCLCPP_DEBUG(node_->get_logger(),
@@ -362,6 +382,7 @@ namespace manymove_cpp_trees
 
     BT::NodeStatus ExecuteTrajectory::onRunning()
     {
+
         // Check if execution_resumed is true getting the blackboard key value.
         bool execution_resumed = false;
         config().blackboard->get("execution_resumed", execution_resumed);
@@ -657,9 +678,11 @@ namespace manymove_cpp_trees
         // If the feedback indicates a collision, set the blackboard key "stop_execution" to true.
         if (feedback->in_collsion)
         {
-            config().blackboard->set("stop_execution", true);
+            // Set collision_detected to true
+            config().blackboard->set("collision_detected", true);
+
             RCLCPP_INFO(node_->get_logger(),
-                        "ExecuteTrajectory [%s]: Collision detected. Setting 'stop_execution' to true on blackboard.",
+                        "ExecuteTrajectory [%s]: Collision detected. Setting 'collision_detected' to true on blackboard.",
                         name().c_str());
         }
     }
@@ -816,16 +839,14 @@ namespace manymove_cpp_trees
         {
             // Build a stop goal
             ExecuteTrajectoryAction::Goal stop_goal;
-            // Depending on your controller's implementation, you might need to send an empty trajectory
-            // or a specific stop trajectory. Here, we'll assume sending an empty trajectory
-            // which the controller interprets as a stop command.
-
-            // Alternatively, you can construct a trajectory with the current position and zero velocity.
-            // For simplicity, we're sending an empty trajectory here.
-
-            // Optionally, set deceleration_time if your action server supports it
-            // stop_goal.deceleration_time = deceleration_time_; // Uncomment if applicable
-
+            /**
+             * Given the implementation for StopMotion.action in manymove_planner, we send an empty
+             * trajectory and the planner will automatically construct a stop motion trajectory to
+             * send to the joint trajectory controller. The new trajectory will preempt the current
+             * trajectory being executed, and its relative action will fail. Any trajectory we send
+             * to the StopMotion action server will be ignored anyway and the stop trajectory will be
+             * constructed as implemented in manymove_planner.
+             */
             // Send the goal
             auto send_goal_options = rclcpp_action::Client<ExecuteTrajectoryAction>::SendGoalOptions();
             send_goal_options.goal_response_callback =

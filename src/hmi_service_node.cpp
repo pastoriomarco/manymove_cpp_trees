@@ -72,16 +72,19 @@ namespace manymove_cpp_trees
         bool execution_resumed = false;
         bool stop_execution = false;
         bool abort_mission = false;
+        bool collision_detected = false;
         blackboard_->get("execution_resumed", execution_resumed);
         blackboard_->get("stop_execution", stop_execution);
         blackboard_->get("abort_mission", abort_mission);
+        blackboard_->get("collision_detected", collision_detected);
 
         // Create a JSON string with the status.
         std_msgs::msg::String msg;
         std::ostringstream ss;
         ss << "{\"execution_resumed\": " << (execution_resumed ? "true" : "false")
            << ", \"stop_execution\": " << (stop_execution ? "true" : "false")
-           << ", \"abort_mission\": " << (abort_mission ? "true" : "false") << "}";
+           << ", \"abort_mission\": " << (abort_mission ? "true" : "false")
+           << ", \"collision_detected\": " << (collision_detected ? "true" : "false") << "}";
         msg.data = ss.str();
 
         publisher_->publish(msg);

@@ -58,7 +58,8 @@ int main(int argc, char **argv)
      * the HMI services and let you pause/stop, resume or abort/reset execution.
      */
     // Setting blackboard keys to control execution:
-    blackboard->set("stop_execution", false);
+    blackboard->set("collision_detected", false);
+    blackboard->set("stop_execution", true);
     blackboard->set("execution_resumed", false);
     blackboard->set("abort_mission", false);
     RCLCPP_INFO(node->get_logger(), "Blackboard: created execution control keys");

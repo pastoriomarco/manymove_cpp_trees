@@ -59,7 +59,8 @@ namespace manymove_cpp_trees
 
             planning_seq << partial_planning_seq.str();
 
-            execution_seq << "    <RetryPauseAbortNode name=\"StopSafe_Retry_" << this_move_id << "\" stop_execution=\"{stop_execution}\" abort_mission=\"{abort_mission}\">\n"
+            execution_seq << "    <RetryPauseAbortNode name=\"StopSafe_Retry_" << this_move_id
+                          << "\" collision_detected=\"{collision_detected}\" stop_execution=\"{stop_execution}\" abort_mission=\"{abort_mission}\">\n"
                           << "     <Fallback>\n"
                           << "      <ExecuteTrajectory"
                           << " name=\"ExecMove_" << this_move_id << "\""
@@ -67,6 +68,7 @@ namespace manymove_cpp_trees
                           << " planned_move_id=\"{planned_move_id_" << this_move_id << "}\""
                           << " trajectory=\"{trajectory_" << this_move_id << "}\""
                           << " planning_validity=\"{validity_" << this_move_id << "}\""
+                          << " collision_detected=\"{collision_detected}\""
                           << "/>\n"
                           << "      <ForceFailure>"
                           << partial_planning_seq.str()

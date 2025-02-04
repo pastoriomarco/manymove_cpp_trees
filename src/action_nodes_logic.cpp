@@ -12,13 +12,18 @@ namespace manymove_cpp_trees
     BT::NodeStatus RetryPauseAbortNode::tick()
     {
         // Read the two controlling blackboard keys:
+        bool collision_detected = false;
         bool abort_mission = false;
         bool stop_execution = false;
 
-        if (!getInput("abort_mission", abort_mission))
-            abort_mission = false;
-        if (!getInput("stop_execution", stop_execution))
-            stop_execution = false;
+        if (!child_node_)
+            throw BT::RuntimeError("RetryPauseAbortNode: missing child");
+
+        if ((!getInput("abort_mission", abort_mission)) || (!getInput("stop_execution", stop_execution)) || (!getInput("collision_detected", collision_detected)))
+        {
+            throw BT::RuntimeError("RetryPauseAbortNode: Missing required input [key]");
+            return BT::NodeStatus::FAILURE;
+        }
 
         // Priority 1: abort_mission is true: halt child and return FAILURE.
         if (abort_mission)
@@ -28,7 +33,7 @@ namespace manymove_cpp_trees
             return BT::NodeStatus::FAILURE;
         }
 
-        // Priority 2: stop_execution is true: halt child and return RUNNING (i.e. pause the retry loop).
+        // Priority 2: stop_execution is true: halt child and return RUNNING (i.e. pause or restart the retry loop).
         if (stop_execution)
         {
             if (child_node_ && child_node_->status() == BT::NodeStatus::RUNNING)
@@ -36,17 +41,38 @@ namespace manymove_cpp_trees
             return BT::NodeStatus::RUNNING;
         }
 
-        // Otherwise, tick the child normally.
-        if (!child_node_)
-            throw BT::RuntimeError("RetryPauseAbortNode: missing child");
+        // Priority 3: collision_detected is true: halt child to stop motion but keep going.
+        if (collision_detected)
+        {
+            // halt the child_node_ if running to stop movement, but keep going
+            if (child_node_ && child_node_->status() == BT::NodeStatus::RUNNING)
+                child_node_->halt();
+            /**
+             * If we get here there have been a collision detected. With the above call we make the
+             * execution halt so the StopMotion will be called. Then the ExecuteTrajectory node will 
+             * start and immediately fail: this is required because we can then jump to the planning node
+             * of the Fallback child. If we reset the collision_detected here, the ExecuteTrajectory
+             * node would wait forever for a valid trajectory, but there wouldn't be any PlanningAction
+             * node running in parallel since we already did at least one execution and the planning chain must
+             * at least be further than the current execution node (otherwise the execution node would still)
+             * be waiting for a valid traj)
+             */
+        }
 
         BT::NodeStatus child_status = child_node_->executeTick();
 
         // If child returns FAILURE, then (like an infinite retry) we return RUNNING so that on the next tick it will be retried.
         if (child_status == BT::NodeStatus::FAILURE)
+        {
             return BT::NodeStatus::RUNNING;
+        }
         else if (child_status == BT::NodeStatus::SUCCESS)
+        {
+            // reset the collision_detected value
+            config().blackboard->set("collision_detected", false);
+
             return BT::NodeStatus::SUCCESS;
+        }
         else // if (child_status == RUNNING)
             return BT::NodeStatus::RUNNING;
     }

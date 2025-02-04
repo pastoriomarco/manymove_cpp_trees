@@ -21,6 +21,7 @@ namespace manymove_cpp_trees
         {
             return {
                 BT::InputPort<bool>("stop_execution", false, "Pause execution when true"),
+                BT::InputPort<bool>("collision_detected", false, "Stops current move when true, then retries planning"),
                 BT::InputPort<bool>("abort_mission", false, "Abort mission when true")};
         }
 
